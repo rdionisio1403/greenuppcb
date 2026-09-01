@@ -33,7 +33,7 @@ erDiagram
     PCBS {
         int id PK
         int customer_id FK "References customers.id"
-        varchar internal_reference UK "Unique internal tracking code"
+        varchar internal_reference "Unique internal tracking code (UK)"
         varchar equipment
         varchar manufacturer
         varchar pcb_model
@@ -83,7 +83,6 @@ erDiagram
         varchar filename_path
         timestamp generated_at
     }
-
 ```
 
 ## 3. Data Dictionary (PostgreSQL DDL Code)
@@ -164,7 +163,6 @@ CREATE TABLE reports (
     filename_path VARCHAR(255) NOT NULL,
     generated_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
-
 ```
 
 ## 4. Sample Data Walkthrough (SQL Insert Script)
