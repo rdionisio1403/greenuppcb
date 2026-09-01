@@ -105,7 +105,7 @@ CREATE TABLE customers (
     reference VARCHAR(100)
 );
 
--- 3. PCBs Core Table
+-- 3. PCBs Core Table 
 CREATE TABLE pcbs (
     id SERIAL PRIMARY KEY,
     customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE RESTRICT,
