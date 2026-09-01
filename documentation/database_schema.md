@@ -7,81 +7,83 @@ This document defines the relational database architecture for the **GreenUp Lab
 
 ## 2. Entity-Relationship (ER) Diagram
 
+```mermaid
 erDiagram
-    CUSTOMERS ||--o{ PCBS : registers
-    PCBS ||--o{ DIAGNOSES : has
-    PCBS ||--o{ REPAIRS : undergoes
-    PCBS ||--o{ TESTS : evaluated_by
-    PCBS ||--o{ IMAGES : documented_with
-    PCBS ||--o{ REPORTS : summarized_in
-
     USERS {
-        int id PK
-        string username
-        string email
-        string role
+        int id PK "Optional"
+        varchar username
+        varchar email
+        varchar role
     }
+
+    CUSTOMERS ||--o{ PCBS : "registers (1-N)"
+    PCBS ||--o{ DIAGNOSES : "has (1-N)"
+    PCBS ||--o{ REPAIRS : "undergoes (1-N)"
+    PCBS ||--o{ TESTS : "evaluated_by (1-N)"
+    PCBS ||--o{ IMAGES : "documented_with (1-N)"
+    PCBS ||--o{ REPORTS : "summarized_in (1-N)"
 
     CUSTOMERS {
         int id PK
-        string name
-        string contact_info
-        string reference
+        varchar name
+        varchar contact_info
+        varchar reference
     }
 
     PCBS {
         int id PK
-        int customer_id FK
-        string internal_reference
-        string equipment
-        string manufacturer
-        string pcb_model
-        string serial_number
-        string data_received
-        string failure_description
-        string status
-        string created_at
+        int customer_id FK "References customers.id"
+        varchar internal_reference "Unique internal tracking code"
+        varchar equipment
+        varchar manufacturer
+        varchar pcb_model
+        varchar serial_number
+        date data_received
+        text failure_description
+        varchar status
+        timestamp created_at
     }
 
     DIAGNOSES {
         int id PK
-        int pcb_id FK
-        string date
-        string findings
-        string notes
+        int pcb_id FK "References pcbs.id"
+        timestamp date
+        text findings
+        text notes
     }
 
     REPAIRS {
         int id PK
-        int pcb_id FK
-        string date
-        string action
-        string components_rep
-        string notes
+        int pcb_id FK "References pcbs.id"
+        timestamp date
+        text action
+        text components_rep
+        text notes
     }
 
     TESTS {
         int id PK
-        int pcb_id FK
-        string date
-        string result
-        string notes
+        int pcb_id FK "References pcbs.id"
+        timestamp date
+        varchar result "Pass or Fail"
+        text notes
     }
 
     IMAGES {
         int id PK
-        int pcb_id FK
-        string category
-        string filename_path
-        string uploaded_at
+        int pcb_id FK "References pcbs.id"
+        varchar category "before, during, after, defect"
+        varchar filename_path
+        timestamp uploaded_at
     }
 
     REPORTS {
         int id PK
-        int pcb_id FK
-        string filename_path
-        string generated_at
+        int pcb_id FK "References pcbs.id"
+        varchar filename_path
+        timestamp generated_at
     }
+```
 
 ## 3. Data Dictionary (PostgreSQL DDL Code)
 
