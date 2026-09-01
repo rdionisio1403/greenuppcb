@@ -16,7 +16,7 @@ erDiagram
         varchar role
     }
 
-CUSTOMERS ||--o{ PCBS : "registers (1-N)"
+    CUSTOMERS ||--o{ PCBS : "registers (1-N)"
     PCBS ||--o{ DIAGNOSES : "has (1-N)"
     PCBS ||--o{ REPAIRS : "undergoes (1-N)"
     PCBS ||--o{ TESTS : "evaluated_by (1-N)"
@@ -30,7 +30,7 @@ CUSTOMERS ||--o{ PCBS : "registers (1-N)"
         varchar reference
     }
 
-PCBS {
+    PCBS {
         int id PK
         int customer_id FK "References customers.id"
         varchar internal_reference UK "Unique internal tracking code"
@@ -52,7 +52,7 @@ PCBS {
         text notes
     }
 
-REPAIRS {
+    REPAIRS {
         int id PK
         int pcb_id FK "References pcbs.id"
         timestamp date
@@ -69,7 +69,7 @@ REPAIRS {
         text notes
     }
 
-IMAGES {
+    IMAGES {
         int id PK
         int pcb_id FK "References pcbs.id"
         varchar category "before, during, after, defect"
