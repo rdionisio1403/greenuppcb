@@ -1,5 +1,9 @@
 from datetime import date
 from pydantic import BaseModel, ConfigDict
+from app.schemas.diagnosis import DiagnosisRead
+from app.schemas.repair import RepairRead
+from app.schemas.test import TestRead
+
 
 class PCBCreate(BaseModel):
     internal_reference: str
@@ -11,8 +15,13 @@ class PCBCreate(BaseModel):
     date_received: date
     failure_description: str
 
-
 class PCBRead(PCBCreate):
     id: int
     status: str
     model_config = ConfigDict(from_attributes=True)
+
+
+class PCBDetailRead(PCBRead):
+    diagnoses: list[DiagnosisRead] = []
+    repairs: list[RepairRead] = []
+    tests: list[TestRead] = []
