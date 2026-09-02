@@ -33,7 +33,7 @@ erDiagram
     PCBS {
         int id PK
         int customer_id FK "References customers.id"
-        varchar internal_reference UK "Unique internal tracking code"
+        varchar internal_reference "Unique internal tracking code (UK)"
         varchar equipment
         varchar manufacturer
         varchar pcb_model
@@ -77,7 +77,7 @@ erDiagram
         timestamp uploaded_at
     }
 
-    REPORTS {
+REPORTS {
         int id PK
         int pcb_id FK "References pcbs.id"
         varchar filename_path

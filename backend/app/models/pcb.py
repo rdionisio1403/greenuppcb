@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from sqlalchemy import String, Text, Date, DateTime
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
 class PCB(Base):
@@ -17,3 +17,8 @@ class PCB(Base):
     failure_description: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(50), default="received")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+# Iliskisel baglantilar
+    diagnoses = relationship("Diagnosis", backref="pcb", cascade="all, delete-orphan")
+    repairs = relationship("Repair", backref="pcb", cascade="all, delete-orphan")
+    tests = relationship("Test", backref="pcb", cascade="all, delete-orphan")
