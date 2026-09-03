@@ -3,7 +3,8 @@ from pydantic import BaseModel, ConfigDict
 from app.schemas.diagnosis import DiagnosisRead
 from app.schemas.repair import RepairRead
 from app.schemas.test import TestRead
-
+from app.schemas.image import ImageRead
+from app.schemas.report import ReportRead
 
 class PCBCreate(BaseModel):
     internal_reference: str
@@ -20,11 +21,12 @@ class PCBRead(PCBCreate):
     status: str
     model_config = ConfigDict(from_attributes=True)
 
-
 class PCBDetailRead(PCBRead):
     diagnoses: list[DiagnosisRead] = []
     repairs: list[RepairRead] = []
     tests: list[TestRead] = []
+    images: list[ImageRead] = []
+    reports: list[ReportRead] = []
 
 class PCBUpdate(BaseModel):
     internal_reference: str | None = None
