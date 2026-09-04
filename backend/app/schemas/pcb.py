@@ -1,38 +1,45 @@
-from datetime import date
-from pydantic import BaseModel, ConfigDict
-from app.schemas.diagnosis import DiagnosisRead
-from app.schemas.repair import RepairRead
-from app.schemas.test import TestRead
+from typing import Optional, List
+from datetime import date, datetime
+from pydantic import BaseModel
 
 
-class PCBCreate(BaseModel):
+class PCBBase(BaseModel):
     internal_reference: str
-    customer_name: str
+    customer_id: Optional[int] = None
+    customer_name: Optional[str] = None
     equipment: str
-    manufacturer: str | None = None
-    pcb_model: str | None = None
-    serial_number: str | None = None
-    date_received: date
-    failure_description: str
+    manufacturer: Optional[str] = None
+    pcb_model: Optional[str] = None
+    serial_number: Optional[str] = None
+    date_received: Optional[date] = None
+    failure_description: Optional[str] = None
+    status: Optional[str] = "received"
 
-class PCBRead(PCBCreate):
+
+class PCBCreate(PCBBase):
+    pass
+
+
+class PCBUpdate(BaseModel):
+    internal_reference: Optional[str] = None
+    customer_id: Optional[int] = None
+    customer_name: Optional[str] = None
+    equipment: Optional[str] = None
+    manufacturer: Optional[str] = None
+    pcb_model: Optional[str] = None
+    serial_number: Optional[str] = None
+    date_received: Optional[date] = None
+    failure_description: Optional[str] = None
+    status: Optional[str] = None
+
+
+class PCBRead(PCBBase):
     id: int
-    status: str
-    model_config = ConfigDict(from_attributes=True)
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
 
 
 class PCBDetailRead(PCBRead):
-    diagnoses: list[DiagnosisRead] = []
-    repairs: list[RepairRead] = []
-    tests: list[TestRead] = []
-
-class PCBUpdate(BaseModel):
-    internal_reference: str | None = None
-    customer_name: str | None = None
-    equipment: str | None = None
-    manufacturer: str | None = None
-    pcb_model: str | None = None
-    serial_number: str | None = None
-    date_received: date | None = None
-    failure_description: str | None = None
-    status: str | None = None
+    pass

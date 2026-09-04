@@ -1,0 +1,11 @@
+# Ignore uploaded files and generated reports
+uploads/*
+!uploads/.gitkeep
+
+# PDF ve Üretilen Raporları Kesinlikle Takip Etme
+*.pdf
+reports/
+backend/reports/
+uploads/
+uploads/reports/
+backend/ap
