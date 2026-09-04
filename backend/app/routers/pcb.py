@@ -1,5 +1,6 @@
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_db
@@ -22,8 +23,19 @@ def create_pcb(data: PCBCreate, db: Session = Depends(get_db)):
     return pcb
 
 @router.get("", response_model=List[PCBRead])
-def list_pcbs(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    return db.query(PCB).offset(skip).limit(limit).all()
+def list_pcbs(q: str | None = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+    query = db.query(PCB)
+    if q:
+        pattern = f"%{q.strip()}%"
+        query = query.filter(
+            or_(
+                PCB.internal_reference.ilike(pattern),
+                PCB.customer_name.ilike(pattern),
+                PCB.pcb_model.ilike(pattern),
+                PCB.equipment.ilike(pattern),
+            )
+        )
+    return query.order_by(PCB.id.desc()).offset(skip).limit(limit).all()
 
 
 @router.get("/{id}", response_model=PCBDetailRead)
