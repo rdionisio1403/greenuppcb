@@ -22,8 +22,9 @@ erDiagram
     PCBS ||--o{ TESTS : "evaluated_by (1-N)"
     PCBS ||--o{ IMAGES : "documented_with (1-N)"
     PCBS ||--o{ REPORTS : "summarized_in (1-N)"
+    TESTS ||--o{ IMAGES : "linked_to (1-N)"
 
-    CUSTOMERS {
+CUSTOMERS {
         int id PK
         varchar name
         varchar contact_info
@@ -44,35 +45,40 @@ erDiagram
         timestamp created_at
     }
 
-    DIAGNOSES {
+DIAGNOSES {
         int id PK
         int pcb_id FK "References pcbs.id"
+        varchar technician
         timestamp date
-        text findings
-        text notes
+        text fault_found
+        text recommended_action
     }
 
     REPAIRS {
         int id PK
         int pcb_id FK "References pcbs.id"
+        varchar technician
         timestamp date
-        text action
-        text components_rep
-        text notes
+        text actions_taken
+        text components_replaced
     }
 
-    TESTS {
+TESTS {
         int id PK
         int pcb_id FK "References pcbs.id"
+        varchar tester
         timestamp date
-        varchar result "Pass or Fail"
+        varchar test_type
+        varchar result "PASSED or FAILED"
         text notes
     }
 
     IMAGES {
         int id PK
         int pcb_id FK "References pcbs.id"
+        int test_id FK "References tests.id (Nullable)"
         varchar category "before, during, after, defect"
+        varchar technician
         varchar filename_path
         timestamp uploaded_at
     }
@@ -123,27 +129,30 @@ CREATE TABLE pcbs (
 CREATE TABLE diagnoses (
     id SERIAL PRIMARY KEY,
     pcb_id INTEGER NOT NULL REFERENCES pcbs(id) ON DELETE CASCADE,
+    technician VARCHAR(100),
     date TIMESTAMP NOT NULL DEFAULT NOW(),
-    findings TEXT NOT NULL,
-    notes TEXT
+    fault_found TEXT NOT NULL,
+    recommended_action TEXT
 );
 
 -- 5. Repairs Table
 CREATE TABLE repairs (
     id SERIAL PRIMARY KEY,
     pcb_id INTEGER NOT NULL REFERENCES pcbs(id) ON DELETE CASCADE,
+    technician VARCHAR(100),
     date TIMESTAMP NOT NULL DEFAULT NOW(),
-    action TEXT NOT NULL,
-    components_rep TEXT,
-    notes TEXT
+    actions_taken TEXT NOT NULL,
+    components_replaced TEXT
 );
 
 -- 6. Tests Table
 CREATE TABLE tests (
     id SERIAL PRIMARY KEY,
     pcb_id INTEGER NOT NULL REFERENCES pcbs(id) ON DELETE CASCADE,
+    tester VARCHAR(100),
     date TIMESTAMP NOT NULL DEFAULT NOW(),
-    result VARCHAR(20) NOT NULL CHECK (result IN ('Pass', 'Fail')),
+    test_type VARCHAR(100),
+    result VARCHAR(20) NOT NULL CHECK (result IN ('PASSED', 'FAILED')),
     notes TEXT
 );
 
@@ -151,7 +160,9 @@ CREATE TABLE tests (
 CREATE TABLE images (
     id SERIAL PRIMARY KEY,
     pcb_id INTEGER NOT NULL REFERENCES pcbs(id) ON DELETE CASCADE,
+    test_id INTEGER REFERENCES tests(id) ON DELETE SET NULL,
     category VARCHAR(50) NOT NULL DEFAULT 'general',
+    technician VARCHAR(100),
     filename_path VARCHAR(255) NOT NULL,
     uploaded_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
@@ -177,20 +188,20 @@ INSERT INTO pcbs (id, customer_id, internal_reference, equipment, manufacturer, 
 VALUES (1, 1, 'PCB-2026-001', 'Solar Inverter Board', 'Schneider', 'INV-500', 'SN987654', '2026-08-27', 'Unit does not power up; input fuse blown.', 'received');
 
 -- Step 3: Add Diagnosis
-INSERT INTO diagnoses (id, pcb_id, date, findings, notes)
-VALUES (1, 1, '2026-08-27 11:00:00', 'D4 diode shorted to GND, C12 capacitor bulging.', 'Root cause: Overvoltage surge on input line.');
+INSERT INTO diagnoses (id, pcb_id, technician, date, fault_found, recommended_action)
+VALUES (1, 1, 'Sema', '2026-08-27 11:00:00', 'D4 diode shorted to GND, C12 capacitor bulging.', 'Replace shorted diode and capacitor.');
 
 -- Step 4: Add Repair
-INSERT INTO repairs (id, pcb_id, date, action, components_rep, notes)
-VALUES (1, 1, '2026-08-27 14:30:00', 'Replaced shorted diode and capacitor; cleaned PCB flux residue.', '1x 1N4007, 1x 100uF 50V Low-ESR', 'Solder joints verified under microscope.');
+INSERT INTO repairs (id, pcb_id, technician, date, actions_taken, components_replaced)
+VALUES (1, 1, 'Sema', '2026-08-27 14:30:00', 'Replaced shorted diode and capacitor; cleaned PCB flux residue.', '1x 1N4007, 1x 100uF 50V Low-ESR');
 
 -- Step 5: Add Test Verification
-INSERT INTO tests (id, pcb_id, date, result, notes)
-VALUES (1, 1, '2026-08-27 16:00:00', 'Pass', 'Input: 24.0V DC, Output: 5.01V DC regulated. Ripple: <15mV under full load.');
+INSERT INTO tests (id, pcb_id, tester, date, test_type, result, notes)
+VALUES (1, 1, 'Sema', '2026-08-27 16:00:00', 'Functional & Power Rail Test', 'PASSED', 'Input: 24.0V DC, Output: 5.01V DC regulated.');
 
--- Step 6: Attach Image and Generated Report
-INSERT INTO images (id, pcb_id, category, filename_path, uploaded_at)
-VALUES (1, 1, 'before', 'uploads/images/pcb_1_before.jpg', '2026-08-27 11:15:00');
+-- Step 6: Attach Image (Linked to Test) and Generated Report
+INSERT INTO images (id, pcb_id, test_id, category, technician, filename_path, uploaded_at)
+VALUES (1, 1, 1, 'before', 'Sema', 'uploads/images/pcb_1_before.jpg', '2026-08-27 11:15:00');
 
 INSERT INTO reports (id, pcb_id, filename_path, generated_at)
 VALUES (1, 1, 'uploads/reports/PCB-2026-001_Final_Report.pdf', '2026-08-27 16:30:00');

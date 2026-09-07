@@ -107,5 +107,5 @@ def download_latest_report(pcb_id: int, db: Session = Depends(get_db)):
     return FileResponse(
         path=file_path,
         media_type="application/pdf",
-        filename=os.path.basename(file_path)
+        content_disposition_type="inline"
     )

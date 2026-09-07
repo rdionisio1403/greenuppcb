@@ -60,9 +60,11 @@ export async function getPCBImages(pcbId) {
   return response.json();
 }
 
-export async function uploadPCBImage(pcbId, category, file) {
+export async function uploadPCBImage(pcbId, category, file, technician = 'Technician', testId = null) {
   const formData = new FormData();
   formData.append("category", category);
+  formData.append("technician", technician);
+  if (testId) formData.append("test_id", testId);
   formData.append("file", file);
 
   const response = await fetch(`/pcbs/${pcbId}/images`, {

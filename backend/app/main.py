@@ -42,118 +42,268 @@ app.include_router(image.router)
 app.include_router(report.router)
 
 
-@app.get("/view-table", response_class=HTMLResponse, tags=["Relational Table View"])
+@app.get("/view-table", response_class=HTMLResponse, tags=["General"])
 def view_full_relational_table(db: Session = Depends(get_db)):
     query = text("""
         SELECT 
-            p.id AS pcb_id,
-            p.internal_reference AS pcb_ref,
+            p.id,
+            COALESCE(p.serial_number, '-') AS serial_number,
             COALESCE(c.name, p.customer_name, '-') AS customer,
             p.equipment,
-            p.status,
-            d.findings AS diagnosis,
-            r.action AS repair_done,
-            t.notes AS test_notes,
-            t.result AS test_status,
-            rep.filename_path AS report_path
+            p.status, rep.filename_path AS pdf_file,
+            COALESCE(string_agg(DISTINCT CONCAT('• ', d.findings), '<br>'), '-') AS diagnosis,
+            COALESCE(string_agg(DISTINCT CONCAT('• ', r.action), '<br>'), '-') AS repair_done,
+            COALESCE(
+                string_agg(
+                    DISTINCT CONCAT(
+                        '<div style="margin-bottom:6px; font-size:13px;">',
+                        CASE 
+                            WHEN UPPER(t.result) = 'PASSED' THEN '<span style="background:#dcfce7; color:#15803d; border:1px solid #86efac; padding:1px 6px; border-radius:4px; font-weight:700; font-size:11px;">PASSED</span> '
+                            ELSE '<span style="background:#fee2e2; color:#b91c1c; border:1px solid #f87171; padding:1px 6px; border-radius:4px; font-weight:700; font-size:11px;">FAILED</span> '
+                        END,
+                        '<b>', COALESCE(t.test_type, 'General Test'), '</b>',
+                        ' <span style="color:#64748b; font-size:11px;">(by ', t.tester, ')</span><br>',
+                        '<span style="color:#334155; margin-left:8px;">', COALESCE(t.notes, '-'), '</span>',
+                        '</div>'
+                    ),
+                    ''
+                ),
+                '-'
+            ) AS test_evaluation
         FROM pcbs p
         LEFT JOIN customers c ON p.customer_id = c.id
-        LEFT JOIN diagnoses d ON p.id = d.pcb_id
-        LEFT JOIN repairs r   ON p.id = r.pcb_id
-        LEFT JOIN tests t     ON p.id = t.pcb_id
-        LEFT JOIN reports rep ON p.id = rep.pcb_id
+        LEFT JOIN diagnoses d ON d.pcb_id = p.id
+        LEFT JOIN repairs r ON r.pcb_id = p.id
+        LEFT JOIN tests t ON t.pcb_id = p.id
+        LEFT JOIN (
+            SELECT DISTINCT ON (pcb_id) pcb_id, filename_path 
+            FROM reports 
+            ORDER BY pcb_id, id DESC
+        ) rep ON rep.pcb_id = p.id
+        GROUP BY p.id, c.name, p.customer_name, p.equipment, p.status, rep.filename_path
         ORDER BY p.id;
     """)
-    rows = db.execute(query).fetchall()
+    
+    images_query = text("""
+        SELECT 
+            i.pcb_id, 
+            i.category, 
+            i.filename_path, 
+            COALESCE(i.technician, 'Technician') AS technician,
+            COALESCE(t.test_type, (SELECT t2.test_type FROM tests t2 WHERE t2.pcb_id = i.pcb_id ORDER BY t2.id ASC LIMIT 1), 'Functional Test') AS test_type
+        FROM images i
+        LEFT JOIN tests t ON i.test_id = t.id
+        ORDER BY i.id;
+    """)
+    
+    im_map = {}
+    for r in db.execute(images_query).fetchall():
+        m = r._mapping
+        pid = m["pcb_id"]
+        if pid not in im_map:
+            im_map[pid] = []
+        tech = m["technician"] or "Technician"
+        tt = m["test_type"]
+        extra = f" • {tt}" if tt else ""
+        cat = (m["category"] or "").lower()
+        test_title = m["test_type"] or "Functional & Power Rail Test"
 
-    # Fetch and map all images per PCB ID
-    img_records = db.execute(text("SELECT pcb_id, category, filename_path FROM images ORDER BY id;")).fetchall()
-    pcb_images = {}
-    for img in img_records:
-        pcb_images.setdefault(img.pcb_id, []).append(img)
-
-    # Color mapping for lifecycle inspection categories
-    category_styles = {
-        "before": {"bg": "#fee2e2", "color": "#b91c1c", "border": "#f87171"},  # Red: initial intake
-        "defect": {"bg": "#ffedd5", "color": "#c2410c", "border": "#fb923c"},  # Orange: specific flaw
-        "during": {"bg": "#e0f2fe", "color": "#0369a1", "border": "#7dd3fc"},  # Blue: repair in progress
-        "after":  {"bg": "#dcfce7", "color": "#15803d", "border": "#86efac"}   # Green: post-repair cleaned
-    }
-
-    table_rows = ""
-    for row in rows:
-        imgs = pcb_images.get(row.pcb_id, [])
-        if imgs:
-            img_badges = []
-            for im in imgs:
-                cat = im.category.lower()
-                style = category_styles.get(cat, {"bg": "#f1f5f9", "color": "#475569", "border": "#cbd5e1"})
-                badge_style = f"background:{style['bg']}; color:{style['color']}; border:1px solid {style['border']};"
-                img_badges.append(
-                    f'<a href="{im.filename_path}" target="_blank" '
-                    f'style="text-decoration:none; display:inline-block; margin:2px; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; {badge_style}">'
-                    f'🔍 {im.category.upper()}</a>'
-                )
-            img_html = "".join(img_badges)
+        # BEFORE -> Kırmızı, DURING -> Sarı, AFTER -> Yeşil, DEFECT -> Koyu Kırmızı
+        if cat == "before":
+            badge_bg = "#fef2f2"
+            badge_color = "#b91c1c"
+            badge_border = "#f87171"
+            cat_icon = "🔍 BEFORE"
+        elif cat == "during":
+            badge_bg = "#fffbeb"
+            badge_color = "#b45309"
+            badge_border = "#fcd34d"
+            cat_icon = "⚡ DURING"
+        elif cat == "defect":
+            badge_bg = "#450a0a"
+            badge_color = "#fecaca"
+            badge_border = "#dc2626"
+            cat_icon = "⚠️ DEFECT"
+        elif cat == "after":
+            badge_bg = "#f0fdf4"
+            badge_color = "#15803d"
+            badge_border = "#86efac"
+            cat_icon = "✅ AFTER"
         else:
-            img_html = '<span style="color:#94a3b8;">None</span>'
+            badge_bg = "#fef2f2"
+            badge_color = "#b91c1c"
+            badge_border = "#f87171"
+            cat_icon = f"🔍 {cat.upper()}"
 
-        rep_badge = f'<a href="{row.report_path}" target="_blank" style="color:#2563eb; font-weight:bold; text-decoration:none;">📄 Report</a>' if row.report_path else '<span style="color:#94a3b8;">None</span>'
-
+        badge = (
+            f'<a href="{m["filename_path"]}" target="_blank" style="display:inline-flex; align-items:center; gap:6px; margin:3px 4px; padding:4px 9px; font-size:11px; font-weight:700; text-decoration:none; border-radius:6px; background:{badge_bg}; color:{badge_color}; border:1px solid {badge_border}; box-shadow:0 1px 2px rgba(0,0,0,0.05);">'
+            f'{cat_icon} <span style="font-size:10px; font-weight:700; color:#1e293b; background:#ffffff; padding:2px 7px; border-radius:4px; border:1px solid {badge_border};">{test_title}</span></a>'
+        )
+        im_map[pid].append(badge)
+        
+    records = db.execute(query).fetchall()
+    table_rows = ""
+    for r in records:
+        m = r._mapping
+        pid = m["id"]
+        imgs_html = "".join(im_map.get(pid, [])) or '<span style="color:#9ca3af; font-size:12px;">No images</span>'
         table_rows += f"""
         <tr>
-            <td style="font-weight:bold; color:#2563eb;">{row.pcb_id}</td>
-            <td>{row.pcb_ref}</td>
-            <td style="font-weight:600; color:#334155;">{row.customer}</td>
-            <td>{row.equipment}</td>
-            <td><span style="background:#e0f2fe; padding:2px 8px; border-radius:4px;">{row.status}</span></td>
-            <td style="background:#fefce8;">{row.diagnosis or '-'}</td>
-            <td style="background:#f0fdf4;">{row.repair_done or '-'}</td>
-            <td>{row.test_notes or '-'}</td>
-            <td><b>{row.test_status or '-'}</b></td>
-            <td>{img_html}</td>
-            <td style="text-align:center;">{rep_badge}</td>
+            <td style="font-weight: 800; color: #0f172a;">#{pid}</td>
+            <td style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 700; color: #0284c7; background: #f0f9ff; padding: 6px 10px; border-radius: 6px; border: 1px solid #e0f2fe; display: inline-block;">{m['serial_number']}</td>
+            <td style="font-weight: 700; color: #0f172a;">{m['customer']}</td>
+            <td style="color: #1e293b; font-weight: 600;">{m['equipment']}</td>
+            <td><span class="badge-status">{m['status']}</span></td>
+            <td style="color: #1e293b; line-height: 1.6;">{m['diagnosis']}</td>
+            <td style="color: #1e293b; line-height: 1.6;">{m['repair_done']}</td>
+            <td>{m['test_evaluation']}</td>
+            <td>{imgs_html}</td>
+            <td style="text-align: center;">{f'<a href="{m["pdf_file"]}" target="_blank" class="btn-pdf">📄 PDF</a>' if m.get('pdf_file') else f'<a href="/pcbs/{pid}/reports/download" target="_blank" class="btn-pdf">📄 PDF</a>'}</td>
         </tr>
         """
 
     html_content = f"""
     <!DOCTYPE html>
-    <html>
+    <html lang="en">
     <head>
-        <title>PCB Relational Lifecycle Table</title>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>GreenUpPCB - Lifecycle Intelligence View</title>
         <style>
-            body {{ font-family: sans-serif; margin: 30px; background: #f8fafc; }}
-            h2 {{ color: #1e293b; margin-bottom: 8px; }}
-            p {{ color: #64748b; margin-top: 0; margin-bottom: 20px; }}
-            table {{ width: 100%; border-collapse: collapse; background: #ffffff; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); border-radius: 8px; overflow: hidden; }}
-            th, td {{ padding: 12px 16px; text-align: left; border-bottom: 1px solid #e2e8f0; font-size: 14px; }}
-            th {{ background-color: #0f172a; color: #ffffff; text-transform: uppercase; font-size: 12px; }}
-            tr:hover {{ background-color: #f1f5f9; }}
+            * {{ box-sizing: border-box; }}
+            body {{ 
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+                background: linear-gradient(180deg, #e2e8f0 0%, #f1f5f9 100%); 
+                margin: 0; 
+                padding: 24px 32px; 
+                color: #0f172a; 
+            }}
+            .page-wrapper {{
+                background: #ffffff;
+                border-radius: 14px;
+                box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.08), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+                border: 1px solid #cbd5e1;
+                overflow: hidden;
+            }}
+            .header-bar {{
+                padding: 18px 24px;
+                background: linear-gradient(90deg, #0f172a 0%, #1e293b 100%);
+                color: #ffffff;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                flex-wrap: wrap;
+                gap: 12px;
+            }}
+            .header-bar h1 {{
+                margin: 0;
+                font-size: 19px;
+                font-weight: 700;
+                color: #ffffff;
+                letter-spacing: -0.01em;
+            }}
+            .sync-badge {{
+                font-size: 12px;
+                background: rgba(16, 185, 129, 0.15);
+                color: #34d399;
+                border: 1px solid rgba(52, 211, 153, 0.4);
+                padding: 4px 12px;
+                border-radius: 9999px;
+                font-weight: 700;
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+            }}
+            .table-responsive {{
+                width: 100%;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }}
+            table {{
+                width: 100%;
+                min-width: 1280px;
+                border-collapse: separate;
+                border-spacing: 0;
+                text-align: left;
+            }}
+            th {{
+                background-color: #f8fafc;
+                padding: 14px 18px;
+                font-size: 12px;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.06em;
+                color: #475569;
+                border-bottom: 2px solid #e2e8f0;
+                white-space: nowrap;
+            }}
+            td {{
+                padding: 16px 18px;
+                vertical-align: top;
+                border-bottom: 1px solid #f1f5f9;
+                font-size: 13px;
+            }}
+            tr:hover td {{
+                background-color: #f8fafc;
+            }}
+            .badge-status {{
+                display: inline-block;
+                background: #e0f2fe;
+                color: #0369a1;
+                border: 1px solid #7dd3fc;
+                padding: 4px 9px;
+                border-radius: 6px;
+                font-weight: 700;
+                font-size: 11px;
+                text-transform: uppercase;
+                letter-spacing: 0.03em;
+                white-space: nowrap;
+                box-shadow: 0 1px 2px rgba(2, 132, 199, 0.08);
+            }}
+            .btn-pdf {{
+                display: inline-block;
+                color: #1d4ed8;
+                font-weight: 700;
+                text-decoration: none;
+                padding: 5px 12px;
+                border-radius: 6px;
+                background: #eff6ff;
+                border: 1px solid #bfdbfe;
+                box-shadow: 0 1px 2px rgba(29, 78, 216, 0.06);
+            }}
+            .btn-pdf:hover {{
+                background: #dbeafe;
+            }}
         </style>
     </head>
     <body>
-        <h2>GreenUp PCB — Consolidated Relational Database Table</h2>
-        <p>Live SQL JOIN view matching ER Diagram: <code>customers &harr; pcbs &harr; diagnoses &harr; repairs &harr; tests &harr; images &harr; reports</code></p>
-        <table>
-            <thead>
-                <tr>
-                    <th>PCB ID</th>
-                    <th>Reference</th>
-                    <th>Customer</th>
-                    <th>Equipment</th>
-                    <th>Status</th>
-                    <th>Diagnosis (findings)</th>
-                    <th>Repair (action)</th>
-                    <th>Test Notes</th>
-                    <th>Test Result</th>
-                    <th>Images (Lifecycle)</th>
-                    <th>Report</th>
-                </tr>
-            </thead>
-            <tbody>
-                {table_rows}
-            </tbody>
-        </table>
+        <div class="page-wrapper">
+            <div class="header-bar">
+                <h1>GreenUpPCB - Full Lifecycle Intelligence Table</h1>
+                <span class="sync-badge">● Real-time DB Sync</span>
+            </div>
+            <div class="table-responsive">
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 60px;">ID</th>
+                            <th style="width: 140px;">Serial</th>
+                            <th style="width: 160px;">Customer</th>
+                            <th style="width: 180px;">Equipment</th>
+                            <th style="width: 120px;">Status</th>
+                            <th style="min-width: 240px;">Diagnosis Findings</th>
+                            <th style="min-width: 240px;">Repairs Done</th>
+                            <th style="min-width: 300px;">Test Results & Evaluation</th>
+                            <th style="min-width: 160px;">Images</th>
+                            <th style="width: 80px; text-align: center;">Report</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {table_rows}
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </body>
     </html>
     """

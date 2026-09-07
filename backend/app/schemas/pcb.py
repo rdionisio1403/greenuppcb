@@ -1,6 +1,12 @@
 from typing import Optional, List
 from datetime import date, datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+
+from app.schemas.diagnosis import DiagnosisRead
+from app.schemas.repair import RepairRead
+from app.schemas.test import TestRead
+from app.schemas.image import ImageRead
+from app.schemas.report import ReportRead
 
 
 class PCBBase(BaseModel):
@@ -37,9 +43,14 @@ class PCBRead(PCBBase):
     id: int
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PCBDetailRead(PCBRead):
-    pass
+    diagnoses: List[DiagnosisRead] = []
+    repairs: List[RepairRead] = []
+    tests: List[TestRead] = []
+    images: List[ImageRead] = []
+    reports: List[ReportRead] = []
+
+    model_config = ConfigDict(from_attributes=True)

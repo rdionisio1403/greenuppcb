@@ -10,6 +10,8 @@ class Image(Base):
     pcb_id = Column(Integer, ForeignKey("pcbs.id", ondelete="CASCADE"), nullable=False)
     category = Column(String(50), nullable=False)
     filename_path = Column(String(255), nullable=False)
+    test_id = Column(Integer, ForeignKey('tests.id', ondelete='SET NULL'), nullable=True)
+    technician = Column(String(100), default='Technician', nullable=True)
     uploaded_at = Column(DateTime(timezone=True), server_default=func.now(), default=func.now(), nullable=False)
 
     # ORM relationship mapping back to PCB model

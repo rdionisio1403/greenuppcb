@@ -2,7 +2,7 @@ import os
 import uuid
 from io import BytesIO
 from enum import Enum
-from typing import List
+from typing import Optional, List
 from PIL import Image as PILImage
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
@@ -52,6 +52,8 @@ def process_and_save_image(file_bytes: bytes, filename_prefix: str) -> str:
 async def upload_pcb_image(
     pcb_id: int,
     category: ImageCategory = Form(..., description="Allowed: before, during, after, defect"),
+    technician: str = Form("Technician", description="Technician who uploaded the image"),
+    test_id: Optional[int] = Form(None, description="Optional associated test ID"),
     file: UploadFile = File(..., description="Image file to upload"),
     db: Session = Depends(get_db)
 ):
@@ -73,6 +75,8 @@ async def upload_pcb_image(
     new_image = Image(
         pcb_id=pcb_id,
         category=category.value,
+        technician=technician,
+        test_id=test_id,
         filename_path=file_url
     )
     db.add(new_image)

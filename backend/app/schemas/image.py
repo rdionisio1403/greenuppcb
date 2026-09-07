@@ -3,7 +3,9 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict
 
 class ImageBase(BaseModel):
-    category: str  # Lifecycle stages: before, during, after, defect
+    category: str
+    technician: Optional[str] = 'Technician'
+    test_id: Optional[int] = None  # Lifecycle stages: before, during, after, defect
     filename_path: str
 
 class ImageCreate(ImageBase):
