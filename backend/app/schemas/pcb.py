@@ -12,7 +12,6 @@ from app.schemas.report import ReportRead
 class PCBBase(BaseModel):
     internal_reference: str
     customer_id: Optional[int] = None
-    customer_name: Optional[str] = None
     equipment: str
     manufacturer: Optional[str] = None
     pcb_model: Optional[str] = None
@@ -29,7 +28,6 @@ class PCBCreate(PCBBase):
 class PCBUpdate(BaseModel):
     internal_reference: Optional[str] = None
     customer_id: Optional[int] = None
-    customer_name: Optional[str] = None
     equipment: Optional[str] = None
     manufacturer: Optional[str] = None
     pcb_model: Optional[str] = None
@@ -41,6 +39,7 @@ class PCBUpdate(BaseModel):
 
 class PCBRead(PCBBase):
     id: int
+    customer_name: Optional[str] = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
