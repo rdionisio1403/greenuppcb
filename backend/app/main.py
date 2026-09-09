@@ -7,7 +7,7 @@ import os
 
 from app.database import engine, Base
 from app.dependencies import get_db
-from app.routers import customer, pcb, diagnosis, repair, test, image, report
+from app.routers import dashboard,  customer, pcb, diagnosis, repair, test, image, report
 
 Base.metadata.create_all(bind=engine)
 
@@ -40,6 +40,7 @@ app.include_router(repair.router)
 app.include_router(test.router)
 app.include_router(image.router)
 app.include_router(report.router)
+app.include_router(dashboard.router)
 
 
 @app.get("/view-table", response_class=HTMLResponse, tags=["General"])
@@ -50,22 +51,31 @@ def view_full_relational_table(db: Session = Depends(get_db)):
             COALESCE(p.serial_number, '-') AS serial_number,
             COALESCE(c.name, p.customer_name, '-') AS customer,
             p.equipment,
-            p.status, rep.filename_path AS pdf_file,
+            p.status, 
+            rep.filename_path AS pdf_file,
             COALESCE(string_agg(DISTINCT CONCAT('• ', d.findings), '<br>'), '-') AS diagnosis,
             COALESCE(string_agg(DISTINCT CONCAT('• ', r.action), '<br>'), '-') AS repair_done,
             COALESCE(
                 string_agg(
-                    DISTINCT CONCAT(
-                        '<div style="margin-bottom:6px; font-size:13px;">',
-                        CASE 
-                            WHEN UPPER(t.result) = 'PASSED' THEN '<span style="background:#dcfce7; color:#15803d; border:1px solid #86efac; padding:1px 6px; border-radius:4px; font-weight:700; font-size:11px;">PASSED</span> '
-                            ELSE '<span style="background:#fee2e2; color:#b91c1c; border:1px solid #f87171; padding:1px 6px; border-radius:4px; font-weight:700; font-size:11px;">FAILED</span> '
-                        END,
-                        '<b>', COALESCE(t.test_type, 'General Test'), '</b>',
-                        ' <span style="color:#64748b; font-size:11px;">(by ', t.tester, ')</span><br>',
-                        '<span style="color:#334155; margin-left:8px;">', COALESCE(t.notes, '-'), '</span>',
-                        '</div>'
-                    ),
+                    DISTINCT 
+                    CASE 
+                        WHEN t.id IS NOT NULL THEN
+                            CONCAT(
+                                '<div style="margin-bottom:6px; font-size:13px;">',
+                                CASE 
+                                    WHEN UPPER(t.result) = 'PASSED' THEN '<span style="background:#dcfce7; color:#15803d; border:1px solid #86efac; padding:1px 6px; border-radius:4px; font-weight:700; font-size:11px;">PASSED</span> '
+                                    ELSE '<span style="background:#fee2e2; color:#b91c1c; border:1px solid #f87171; padding:1px 6px; border-radius:4px; font-weight:700; font-size:11px;">FAILED</span> '
+                                END,
+                                '<b>', COALESCE(t.test_type, 'General Test'), '</b>',
+                                CASE 
+                                    WHEN t.tester IS NOT NULL AND t.tester != '' THEN CONCAT(' <span style="color:#64748b; font-size:11px;">(by ', t.tester, ')</span>')
+                                    ELSE ''
+                                END,
+                                '<br><span style="color:#334155; margin-left:8px;">', COALESCE(t.notes, '-'), '</span>',
+                                '</div>'
+                            )
+                        ELSE NULL
+                    END,
                     ''
                 ),
                 '-'
@@ -84,12 +94,13 @@ def view_full_relational_table(db: Session = Depends(get_db)):
         ORDER BY p.id;
     """)
     
+    # Fetch lifecycle images with associated test metadata and technician attribution
     images_query = text("""
         SELECT 
             i.pcb_id, 
             i.category, 
             i.filename_path, 
-            COALESCE(i.technician, 'Technician') AS technician,
+            COALESCE(NULLIF(i.technician, 'Technician'), t.tester, 'Technician') AS technician,
             COALESCE(t.test_type, (SELECT t2.test_type FROM tests t2 WHERE t2.pcb_id = i.pcb_id ORDER BY t2.id ASC LIMIT 1), 'Functional Test') AS test_type
         FROM images i
         LEFT JOIN tests t ON i.test_id = t.id
@@ -135,9 +146,10 @@ def view_full_relational_table(db: Session = Depends(get_db)):
             badge_border = "#f87171"
             cat_icon = f"🔍 {cat.upper()}"
 
+        # Render image category badge with test identification and technician signature
         badge = (
             f'<a href="{m["filename_path"]}" target="_blank" style="display:inline-flex; align-items:center; gap:6px; margin:3px 4px; padding:4px 9px; font-size:11px; font-weight:700; text-decoration:none; border-radius:6px; background:{badge_bg}; color:{badge_color}; border:1px solid {badge_border}; box-shadow:0 1px 2px rgba(0,0,0,0.05);">'
-            f'{cat_icon} <span style="font-size:10px; font-weight:700; color:#1e293b; background:#ffffff; padding:2px 7px; border-radius:4px; border:1px solid {badge_border};">{test_title}</span></a>'
+            f'{cat_icon} <span style="font-size:10px; font-weight:700; color:#1e293b; background:#ffffff; padding:3px 7px; border-radius:4px; border:1px solid {badge_border}; line-height:1.2; text-align:center;">{test_title}<br><span style="font-size:9px; color:#64748b; font-weight:600;">(by {tech})</span></span></a>'
         )
         im_map[pid].append(badge)
         

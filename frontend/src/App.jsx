@@ -4,6 +4,7 @@ import Layout from "./components/Layout";
 import PCBList from "./pages/PCBList";
 import PCBCreate from "./pages/PCBCreate";
 import PCBDetail from "./pages/PCBDetail";
+import Dashboard from "./pages/Dashboard";
 
 export default function App() {
   return (
@@ -11,6 +12,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<PCBList />} />
+          <Route path="dashboard" element={<Dashboard />} />
           <Route path="new" element={<PCBCreate />} />
           <Route path="pcbs/:id" element={<PCBDetail />} />
         </Route>

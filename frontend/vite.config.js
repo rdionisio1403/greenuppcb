@@ -6,11 +6,19 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
+      '/dashboard': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+        bypass: (req) => {
+          if (req.headers.accept && req.headers.accept.includes('text/html')) {
+            return '/index.html';
+          }
+        }
+      },
       '/pcbs': {
         target: 'http://localhost:8000',
         changeOrigin: true,
-        // Eğer istek HTML/gezinme isteğiyse backend yerine index.html'e yönlendir (SPA Yenileme Desteği)
-        bypass: (req, res, options) => {
+        bypass: (req) => {
           if (req.headers.accept && req.headers.accept.includes('text/html')) {
             return '/index.html';
           }

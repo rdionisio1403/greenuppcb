@@ -62,6 +62,24 @@ async def upload_pcb_image(
     if not pcb:
         raise HTTPException(status_code=404, detail="PCB not found")
 
+    # Validate test association and enforce tester attribution
+    if test_id is not None:
+        test = db.query(Test).filter(Test.id == test_id).first() if "Test" in globals() else None
+        if not test:
+            from app.models.test import Test
+            test = db.query(Test).filter(Test.id == test_id).first()
+        if not test or test.pcb_id != pcb_id:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Test with ID {test_id} does not exist or does not belong to PCB #{pcb_id}"
+            )
+        # Strict Validation: Reject if specified technician does not match the test executor
+        if test.tester and technician and technician.strip().lower() != test.tester.strip().lower():
+            raise HTTPException(
+                status_code=400,
+                detail=f"Technician mismatch: Test #{test_id} was conducted by '{test.tester}', but '{technician}' was provided."
+            )
+
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Only image files are allowed")
 

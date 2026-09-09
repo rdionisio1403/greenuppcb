@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.dependencies import get_db
 from app.models.pcb import PCB
+from app.models.customer import Customer
 from app.schemas.pcb import PCBCreate, PCBRead, PCBDetailRead, PCBUpdate
 
 router = APIRouter(prefix="/pcbs", tags=["PCBs"])
@@ -16,11 +17,30 @@ def create_pcb(data: PCBCreate, db: Session = Depends(get_db)):
     if existing:
         raise HTTPException(status_code=409, detail="Internal reference already exists")
 
-    pcb = PCB(**data.model_dump())
+    pcb_dict = data.model_dump()
+    
+    # Match customer by ID or resolve dynamically by customer name
+    if pcb_dict.get("customer_id"):
+        cust = db.query(Customer).filter(Customer.id == pcb_dict["customer_id"]).first()
+        if cust:
+            pcb_dict["customer_name"] = cust.name
+    elif pcb_dict.get("customer_name"):
+        c_name = pcb_dict["customer_name"].strip()
+        cust = db.query(Customer).filter(Customer.name.ilike(c_name)).first()
+        if not cust:
+            # Register newly encountered client in customers registry
+            cust = Customer(name=c_name)
+            db.add(cust)
+            db.flush()
+        pcb_dict["customer_id"] = cust.id
+        pcb_dict["customer_name"] = cust.name
+
+    pcb = PCB(**pcb_dict)
     db.add(pcb)
     db.commit()
     db.refresh(pcb)
     return pcb
+
 
 @router.get("", response_model=List[PCBRead])
 def list_pcbs(q: str | None = None, skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
@@ -45,6 +65,7 @@ def get_pcb(id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="PCB not found")
     return pcb
 
+
 @router.patch("/{id}", response_model=PCBRead)
 def update_pcb(id: int, data: PCBUpdate, db: Session = Depends(get_db)):
     pcb = db.query(PCB).filter(PCB.id == id).first()
@@ -57,6 +78,11 @@ def update_pcb(id: int, data: PCBUpdate, db: Session = Depends(get_db)):
         existing = db.query(PCB).filter(PCB.internal_reference == update_data["internal_reference"]).first()
         if existing:
             raise HTTPException(status_code=409, detail="Internal reference already exists")
+
+    if "customer_id" in update_data and update_data["customer_id"]:
+        cust = db.query(Customer).filter(Customer.id == update_data["customer_id"]).first()
+        if cust:
+            update_data["customer_name"] = cust.name
 
     for field, value in update_data.items():
         setattr(pcb, field, value)

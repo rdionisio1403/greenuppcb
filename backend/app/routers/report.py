@@ -21,15 +21,24 @@ def generate_report(pcb_id: int, db: Session = Depends(get_db)):
     try:
         query = text("""
             SELECT 
-                p.id, p.internal_reference, p.equipment, p.manufacturer, p.pcb_model, p.serial_number, p.status,
-                d.fault_found, d.recommended_action,
-                r.actions_taken, r.components_replaced,
-                t.notes AS test_notes, t.result AS test_result
+                p.id, 
+                p.equipment, 
+                p.manufacturer, 
+                p.pcb_model, 
+                p.serial_number, 
+                p.status,
+                d.findings AS fault_found, 
+                d.notes AS recommended_action,
+                r.action AS actions_taken, 
+                r.components_rep AS components_replaced,
+                t.notes AS test_notes, 
+                t.result AS test_result
             FROM pcbs p
             LEFT JOIN diagnoses d ON p.id = d.pcb_id
             LEFT JOIN repairs r   ON p.id = r.pcb_id
             LEFT JOIN tests t     ON p.id = t.pcb_id
             WHERE p.id = :pcb_id
+            ORDER BY d.id DESC, r.id DESC, t.id DESC
             LIMIT 1;
         """)
         row = db.execute(query, {"pcb_id": pcb_id}).mappings().first()
@@ -110,7 +119,7 @@ def download_latest_report(pcb_id: int, db: Session = Depends(get_db)):
         else:
             raise HTTPException(status_code=404, detail=f"PDF file not found on disk at {abs_path}")
 
-    filename = f"PCB_{pcb_id}_Service_Report.pdf"
+    filename = os.path.basename(report.filename_path) or f"report_pcb_{pcb_id}.pdf"
 
     return FileResponse(
         path=abs_path,

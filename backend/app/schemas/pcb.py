@@ -28,6 +28,7 @@ class PCBCreate(PCBBase):
 class PCBUpdate(BaseModel):
     internal_reference: Optional[str] = None
     customer_id: Optional[int] = None
+    customer_name: Optional[str] = None
     equipment: Optional[str] = None
     manufacturer: Optional[str] = None
     pcb_model: Optional[str] = None

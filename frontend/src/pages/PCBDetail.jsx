@@ -5,36 +5,18 @@ import { getPCB, addDiagnosis, addRepair, addTest, uploadPCBImage } from "../api
 export default function PCBDetail() {
   const { id } = useParams();
 
-  const handleDownloadPDF = async () => {
-    try {
-      const response = await fetch(`/pcbs/${id}/reports/download`);
-      if (!response.ok) throw new Error("Download failed");
-      
-      // Backend'in dosya yolundan veya veritabanındaki rapor adından orijinal ismi alalım
-      let filename = "inspection_report.pdf";
-      if (pcb.reports && pcb.reports.length > 0 && pcb.reports[0].filename_path) {
-        const parts = pcb.reports[0].filename_path.split("/");
-        filename = parts[parts.length - 1];
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (err) {
-      alert("Failed to download PDF report: " + err.message);
-    }
-  };
   const [pcb, setPcb] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Form states matching exact inputs in the screenshot
+  // Çift tıklama ve mükerrer kayıt engelleme bayrakları
+  const [savingDiag, setSavingDiag] = useState(false);
+  // Controls report compilation loading state
+  const [generatingReport, setGeneratingReport] = useState(false);
+  const [savingRepair, setSavingRepair] = useState(false);
+  const [savingTest, setSavingTest] = useState(false);
+
+  // Form states
   const [diagForm, setDiagForm] = useState({ technician: "", fault_found: "", recommended_action: "" });
   const [repairForm, setRepairForm] = useState({ technician: "", actions_taken: "", components_replaced: "" });
   const [testForm, setTestForm] = useState({ tester: "", test_type: "", result: "PASSED", notes: "" });
@@ -63,36 +45,108 @@ export default function PCBDetail() {
     loadData();
   }, [id]);
 
+  // Trigger backend PDF compilation service for the active PCB
+  const handleGenerateReport = async () => {
+    if (generatingReport) return;
+    setGeneratingReport(true);
+    try {
+      const response = await fetch(`/pcbs/${id}/reports/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.detail || "Report generation failed");
+      }
+      alert("Inspection report compiled successfully!");
+      // Reload PCB lifecycle records to sync latest report metadata
+      await loadData();
+    } catch (err) {
+      alert("Failed to generate report: " + err.message);
+    } finally {
+      setGeneratingReport(false);
+    }
+  };
+
+  const handleDownloadPDF = async () => {
+    try {
+      const response = await fetch(`/pcbs/${id}/reports/download`);
+      if (!response.ok) throw new Error("Download failed");
+      
+      let filename = "inspection_report.pdf";
+      if (pcb.reports && pcb.reports.length > 0 && pcb.reports[0].filename_path) {
+        const parts = pcb.reports[0].filename_path.split("/");
+        filename = parts[parts.length - 1];
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      alert("Failed to download PDF report: " + err.message);
+    }
+  };
+
   const handleAddDiagnosis = async (e) => {
     e.preventDefault();
+    if (savingDiag) return;
+    setSavingDiag(true);
     try {
-      await addDiagnosis(id, diagForm);
+      const payload = {
+        ...diagForm,
+        diagnosis_date: new Date().toISOString().split("T")[0]
+      };
+      await addDiagnosis(id, payload);
       setDiagForm({ technician: "", fault_found: "", recommended_action: "" });
       loadData();
     } catch (err) {
       alert("Error adding diagnosis: " + err.message);
+    } finally {
+      setSavingDiag(false);
     }
   };
 
   const handleAddRepair = async (e) => {
     e.preventDefault();
+    if (savingRepair) return;
+    setSavingRepair(true);
     try {
-      await addRepair(id, repairForm);
+      const payload = {
+        ...repairForm,
+        repair_date: new Date().toISOString().split("T")[0]
+      };
+      await addRepair(id, payload);
       setRepairForm({ technician: "", actions_taken: "", components_replaced: "" });
       loadData();
     } catch (err) {
       alert("Error adding repair: " + err.message);
+    } finally {
+      setSavingRepair(false);
     }
   };
 
   const handleAddTest = async (e) => {
     e.preventDefault();
+    if (savingTest) return;
+    setSavingTest(true);
     try {
-      await addTest(id, testForm);
+      const payload = {
+        ...testForm,
+        test_date: new Date().toISOString().split("T")[0]
+      };
+      await addTest(id, payload);
       setTestForm({ tester: "", test_type: "", result: "PASSED", notes: "" });
       loadData();
     } catch (err) {
       alert("Error adding test: " + err.message);
+    } finally {
+      setSavingTest(false);
     }
   };
 
@@ -129,10 +183,6 @@ export default function PCBDetail() {
     );
   }
 
-  const latestPdfUrl = (pcb.reports && pcb.reports.length > 0 && pcb.reports[0].filename_path) 
-    ? pcb.reports[0].filename_path 
-    : `/pcbs/${id}/reports/download`;
-
   const inputStyle = {
     width: "100%",
     padding: "9px 12px",
@@ -144,17 +194,17 @@ export default function PCBDetail() {
     boxSizing: "border-box"
   };
 
-  const btnSuccess = {
+  const btnSuccess = (disabled) => ({
     padding: "8px 16px",
-    backgroundColor: "#238636",
-    color: "#ffffff",
+    backgroundColor: disabled ? "#21262d" : "#238636",
+    color: disabled ? "#8b949e" : "#ffffff",
     border: "1px solid rgba(240, 246, 252, 0.1)",
     borderRadius: "6px",
     fontWeight: "700",
     fontSize: "0.85rem",
-    cursor: "pointer",
+    cursor: disabled ? "not-allowed" : "pointer",
     display: "inline-block"
-  };
+  });
 
   return (
     <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "20px 16px", color: "#e6edf3", fontFamily: "Segoe UI, -apple-system, sans-serif" }}>
@@ -175,39 +225,48 @@ export default function PCBDetail() {
         >
           ← Back to Registry
         </Link>
-        <a 
-          onClick={handleDownloadPDF}
+        <div style={{ display: "flex", gap: "10px" }}>
+          {/* Action button to compile latest lifecycle data into PDF */}
+          <button
+            onClick={handleGenerateReport}
+            disabled={generatingReport}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              backgroundColor: generatingReport ? "#238636aa" : "#238636",
+              color: "#ffffff",
+              padding: "8px 16px",
+              borderRadius: "6px",
+              fontWeight: "600",
+              fontSize: "0.88rem",
+              cursor: generatingReport ? "not-allowed" : "pointer",
+              border: "none",
+              boxShadow: "0 2px 4px rgba(0,0,0,0.2)"
+            }}
+          >
+            <span>{generatingReport ? "⏳" : "⚡"}</span> {generatingReport ? "Generating..." : "Generate Report"}
+          </button>
+          <button 
+            onClick={handleDownloadPDF}
           style={{
-            padding: "8px 16px",
-            backgroundColor: "#1f6feb",
-            color: "#ffffff",
-            textDecoration: "none",
-            borderRadius: "6px",
-            fontSize: "0.88rem",
-            fontWeight: "600",
             display: "inline-flex",
             alignItems: "center",
             gap: "8px",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.2)",
+            backgroundColor: "#1f6feb",
+            color: "#ffffff",
+            padding: "8px 16px",
+            borderRadius: "6px",
+            fontSize: "0.88rem",
+            fontWeight: "600",
             cursor: "pointer",
-            border: "none"
-          }}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "8px",
-            backgroundColor: "#1f6feb",
-            color: "#ffffff",
-            padding: "8px 16px",
-            borderRadius: "6px",
-            textDecoration: "none",
-            fontWeight: "600",
-            fontSize: "0.88rem",
+            border: "none",
             boxShadow: "0 2px 4px rgba(0,0,0,0.2)"
           }}
         >
           <span>📄</span> Download Inspection PDF
-        </a>
+        </button>
+        </div>
       </div>
 
       {/* Main Board Info Card */}
@@ -235,22 +294,22 @@ export default function PCBDetail() {
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "12px", padding: "16px", backgroundColor: "#0d1117", borderRadius: "6px", border: "1px solid #21262d", fontSize: "0.88rem" }}>
-          <div><span style={{ color: "#8b949e" }}>Customer:</span> <strong style={{ color: "#f0f6fc" }}>{pcb.customer_name || "EcoPower Solutions"}</strong></div>
-          <div><span style={{ color: "#8b949e" }}>Manufacturer:</span> <strong style={{ color: "#f0f6fc" }}>{pcb.manufacturer || "SMA Solar Technology"}</strong></div>
-          <div><span style={{ color: "#8b949e" }}>PCB Model:</span> <strong style={{ color: "#f0f6fc" }}>{pcb.pcb_model || "INV-CTRL-5KW-V2"}</strong></div>
-          <div><span style={{ color: "#8b949e" }}>Serial Number:</span> <strong style={{ color: "#f0f6fc" }}>{pcb.serial_number || "SN-SOLAR-2026-9901"}</strong></div>
-          <div><span style={{ color: "#8b949e" }}>Received Date:</span> <strong style={{ color: "#f0f6fc" }}>{pcb.date_received || "2026-09-07"}</strong></div>
+          <div><span style={{ color: "#8b949e" }}>Customer:</span> <strong style={{ color: "#f0f6fc" }}>{pcb.customer_name || "-"}</strong></div>
+          <div><span style={{ color: "#8b949e" }}>Manufacturer:</span> <strong style={{ color: "#f0f6fc" }}>{pcb.manufacturer || "-"}</strong></div>
+          <div><span style={{ color: "#8b949e" }}>PCB Model:</span> <strong style={{ color: "#f0f6fc" }}>{pcb.pcb_model || "-"}</strong></div>
+          <div><span style={{ color: "#8b949e" }}>Serial Number:</span> <strong style={{ color: "#f0f6fc" }}>{pcb.serial_number || "-"}</strong></div>
+          <div><span style={{ color: "#8b949e" }}>Received Date:</span> <strong style={{ color: "#f0f6fc" }}>{pcb.date_received || "-"}</strong></div>
         </div>
 
         <div style={{ marginTop: "18px", textAlign: "center", padding: "14px", backgroundColor: "rgba(22, 27, 34, 0.7)", borderRadius: "6px", border: "1px dashed #30363d" }}>
           <span style={{ fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "1px", color: "#8b949e", fontWeight: "700" }}>REPORTED FAILURE:</span>
           <p style={{ margin: "6px 0 0 0", fontSize: "0.92rem", color: "#e6edf3", lineHeight: "1.5" }}>
-            {pcb.failure_description || "Input fuse blown and shorted Schottky diode causing power rail grounding."}
+            {pcb.failure_description || "None reported"}
           </p>
         </div>
       </div>
 
-      {/* Grid 2 Sütun: Diagnosis (Sol) & Repairs (Sağ) */}
+      {/* Grid 2 Sütun: Diagnosis & Repairs */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "24px" }}>
         
         {/* Diagnosis Card */}
@@ -259,7 +318,7 @@ export default function PCBDetail() {
             <span>🩺</span> Diagnosis ({pcb.diagnoses ? pcb.diagnoses.length : 0})
           </h4>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "18px", maxHeight: "260px", overflowY: "auto", paddingRight: "6px", maxHeight: "260px", overflowY: "auto", paddingRight: "6px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "18px", maxHeight: "260px", overflowY: "auto", paddingRight: "6px" }}>
             {(!pcb.diagnoses || pcb.diagnoses.length === 0) ? (
               <p style={{ color: "#6e7681", fontSize: "0.85rem", margin: 0 }}>No diagnosis logged yet.</p>
             ) : (
@@ -267,10 +326,15 @@ export default function PCBDetail() {
                 <div key={d.id} style={{ backgroundColor: "#0d1117", border: "1px solid #21262d", borderRadius: "6px", padding: "14px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
                     <strong style={{ color: "#58a6ff", fontSize: "0.92rem" }}>{d.technician}</strong>
-                    <span style={{ color: "#8b949e", fontSize: "0.78rem" }}>{d.diagnosis_date ? String(d.diagnosis_date).split("T")[0] : "2026-09-07"}</span>
+                    <span style={{ color: "#8b949e", fontSize: "0.78rem" }}>{d.diagnosis_date ? String(d.diagnosis_date).split("T")[0] : ""}</span>
                   </div>
                   <p style={{ margin: "0 0 8px 0", fontSize: "0.88rem", color: "#e6edf3", textAlign: "center", lineHeight: "1.4" }}>
                     {d.fault_found || d.findings}
+                    {d.technician && (
+                      <span style={{ color: "#8b949e", fontSize: "0.8rem", fontWeight: "normal" }}>
+                        {" "}(by {d.technician})
+                      </span>
+                    )}
                   </p>
                   {(d.recommended_action || d.recommendation) && (
                     <div style={{ fontSize: "0.82rem", fontStyle: "italic", color: "#8b949e", textAlign: "center", borderTop: "1px solid #21262d", paddingTop: "6px" }}>
@@ -304,7 +368,9 @@ export default function PCBDetail() {
               onChange={(e) => setDiagForm({ ...diagForm, recommended_action: e.target.value })} 
             />
             <div>
-              <button type="submit" style={btnSuccess}>+ Add Diagnosis</button>
+              <button type="submit" disabled={savingDiag} style={btnSuccess(savingDiag)}>
+                {savingDiag ? "Adding..." : "+ Add Diagnosis"}
+              </button>
             </div>
           </form>
         </div>
@@ -323,14 +389,19 @@ export default function PCBDetail() {
                 <div key={r.id} style={{ backgroundColor: "#0d1117", border: "1px solid #21262d", borderRadius: "6px", padding: "14px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
                     <strong style={{ color: "#f0883e", fontSize: "0.92rem" }}>{r.technician}</strong>
-                    <span style={{ color: "#8b949e", fontSize: "0.78rem" }}>{r.repair_date ? String(r.repair_date).split("T")[0] : "2026-09-07"}</span>
+                    <span style={{ color: "#8b949e", fontSize: "0.78rem" }}>{r.repair_date ? String(r.repair_date).split("T")[0] : ""}</span>
                   </div>
                   <p style={{ margin: "0 0 8px 0", fontSize: "0.88rem", color: "#e6edf3", textAlign: "center", lineHeight: "1.4" }}>
-                    {r.actions_taken || r.action_taken}
+                    {r.actions_taken || r.action}
+                    {r.technician && (
+                      <span style={{ color: "#8b949e", fontSize: "0.8rem", fontWeight: "normal" }}>
+                        {" "}(by {r.technician})
+                      </span>
+                    )}
                   </p>
-                  {(r.components_replaced || r.replaced) && (
+                  {(r.components_replaced || r.components_rep) && (
                     <div style={{ fontSize: "0.82rem", color: "#8b949e", textAlign: "center", borderTop: "1px solid #21262d", paddingTop: "6px" }}>
-                      Replaced: <span style={{ color: "#d29922" }}>{r.components_replaced || r.replaced}</span>
+                      Replaced: <span style={{ color: "#d29922" }}>{r.components_replaced || r.components_rep}</span>
                     </div>
                   )}
                 </div>
@@ -360,20 +431,22 @@ export default function PCBDetail() {
               onChange={(e) => setRepairForm({ ...repairForm, components_replaced: e.target.value })} 
             />
             <div>
-              <button type="submit" style={btnSuccess}>+ Add Repair</button>
+              <button type="submit" disabled={savingRepair} style={btnSuccess(savingRepair)}>
+                {savingRepair ? "Adding..." : "+ Add Repair"}
+              </button>
             </div>
           </form>
         </div>
 
       </div>
 
-      {/* Tests Card - 3. Görseldeki Geniş Format */}
+      {/* Tests Card */}
       <div style={{ backgroundColor: "#161b22", border: "1px solid #30363d", borderRadius: "8px", padding: "20px", marginBottom: "24px" }}>
         <h4 style={{ margin: "0 0 16px 0", color: "#3fb950", fontSize: "1.08rem", display: "flex", alignItems: "center", gap: "8px" }}>
           <span>✅</span> Tests ({pcb.tests ? pcb.tests.length : 0})
         </h4>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "18px" , maxHeight: "260px", overflowY: "auto", paddingRight: "6px"}}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "18px", maxHeight: "260px", overflowY: "auto", paddingRight: "6px" }}>
           {(!pcb.tests || pcb.tests.length === 0) ? (
             <p style={{ color: "#6e7681", fontSize: "0.85rem", margin: 0 }}>No tests executed yet.</p>
           ) : (
@@ -397,6 +470,11 @@ export default function PCBDetail() {
                   </div>
                   <div style={{ textAlign: "center", fontWeight: "700", color: "#f0f6fc", fontSize: "0.98rem", margin: "6px 0" }}>
                     {t.test_type}
+                    {(t.tester || t.technician) && (
+                      <span style={{ color: "#8b949e", fontSize: "0.8rem", fontWeight: "normal" }}>
+                        {" "}(by {t.tester || t.technician})
+                      </span>
+                    )}
                   </div>
                   {t.notes && (
                     <p style={{ margin: "6px 0 0 0", textAlign: "center", fontSize: "0.86rem", color: "#8b949e", lineHeight: "1.4" }}>
@@ -439,7 +517,9 @@ export default function PCBDetail() {
             onChange={(e) => setTestForm({ ...testForm, notes: e.target.value })} 
           />
           <div>
-            <button type="submit" style={btnSuccess}>+ Add Test</button>
+            <button type="submit" disabled={savingTest} style={btnSuccess(savingTest)}>
+              {savingTest ? "Adding..." : "+ Add Test"}
+            </button>
           </div>
         </form>
       </div>
@@ -463,7 +543,6 @@ export default function PCBDetail() {
             <option value="after">After Repair</option>
           </select>
 
-          {/* Yazarak arama yapılabilen (datalist destekli) teknisyen inputu */}
           <input
             type="text"
             list="technicians-list"
@@ -485,7 +564,6 @@ export default function PCBDetail() {
             ))}
           </datalist>
 
-          {/* Teknisyene göre büyük/küçük harf duyarsız filtrelenen testler */}
           <select
             value={selectedTestId}
             onChange={(e) => setSelectedTestId(e.target.value)}
@@ -514,17 +592,7 @@ export default function PCBDetail() {
           <button
             type="submit"
             disabled={uploading}
-            style={{ 
-              padding: "8px 16px",
-              backgroundColor: "#238636",
-              color: "#ffffff",
-              border: "1px solid rgba(240, 246, 252, 0.1)",
-              borderRadius: "6px",
-              fontWeight: "700",
-              fontSize: "0.85rem",
-              cursor: "pointer",
-              opacity: uploading ? 0.7 : 1 
-            }}
+            style={btnSuccess(uploading)}
           >
             {uploading ? "Uploading..." : "+ Upload Image"}
           </button>
