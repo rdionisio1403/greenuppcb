@@ -11,6 +11,14 @@ class TestCreate(BaseModel):
     notes: Optional[str] = None
 
 
+class TestUpdate(BaseModel):
+    test_date: Optional[date] = None
+    tester: Optional[str] = None
+    test_type: Optional[str] = None
+    result: Optional[str] = None
+    notes: Optional[str] = None
+
+
 class TestRead(TestCreate):
     id: int
     pcb_id: int

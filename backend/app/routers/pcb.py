@@ -1,3 +1,11 @@
+def compute_is_archived(pcb) -> bool:
+    from datetime import date, timedelta
+    cutoff = date.today() - timedelta(days=365)
+    if not pcb.tests:
+        return False
+    # If all tests are older than 1 year, the card is archived
+    return all(t.test_date and t.test_date < cutoff for t in pcb.tests)
+
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import or_
