@@ -65,3 +65,11 @@ class PCBDetailRead(PCBRead):
     reports: List[ReportRead] = []
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class PaginatedPCBRead(BaseModel):
+    items: List[PCBRead]
+    total: int
+    page: int
+    limit: int
+    total_pages: int

@@ -1,79 +1,80 @@
-export async function getPCBs(q = "") {
-  const url = q ? `/pcbs?q=${encodeURIComponent(q)}` : "/pcbs";
-  const response = await fetch(url);
-  if (!response.ok) throw new Error("Could not load PCBs");
-  return response.json();
+// Using relative paths to route requests cleanly through Vite dev server proxy
+export async function getPCBs(q = "", page = 1, limit = 10) {
+  const params = new URLSearchParams();
+  if (q && q.trim()) params.append("q", q.trim());
+  params.append("page", page);
+  params.append("limit", limit);
+
+  const res = await fetch(`/pcbs?${params.toString()}`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch PCBs: ${res.statusText}`);
+  }
+  return await res.json();
 }
 
 export async function getPCB(id) {
-  const response = await fetch(`/pcbs/${id}`);
-  if (!response.ok) throw new Error("Could not load PCB details");
-  return response.json();
+  const res = await fetch(`/pcbs/${id}`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch PCB details: ${res.statusText}`);
+  }
+  return await res.json();
 }
 
 export async function createPCB(data) {
-  const response = await fetch("/pcbs", {
+  const res = await fetch("/pcbs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
   });
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err.detail || "Could not create PCB");
+  if (!res.ok) {
+    throw new Error(`Failed to create PCB: ${res.statusText}`);
   }
-  return response.json();
+  return await res.json();
 }
 
 export async function addDiagnosis(pcbId, data) {
-  const response = await fetch(`/pcbs/${pcbId}/diagnoses`, {
+  const res = await fetch("/diagnoses", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
+    body: JSON.stringify({ ...data, pcb_id: pcbId }),
   });
-  if (!response.ok) throw new Error("Could not add diagnosis");
-  return response.json();
+  if (!res.ok) {
+    throw new Error(`Failed to add diagnosis: ${res.statusText}`);
+  }
+  return await res.json();
 }
 
 export async function addRepair(pcbId, data) {
-  const response = await fetch(`/pcbs/${pcbId}/repairs`, {
+  const res = await fetch("/repairs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
+    body: JSON.stringify({ ...data, pcb_id: pcbId }),
   });
-  if (!response.ok) throw new Error("Could not add repair");
-  return response.json();
+  if (!res.ok) {
+    throw new Error(`Failed to add repair: ${res.statusText}`);
+  }
+  return await res.json();
 }
 
 export async function addTest(pcbId, data) {
-  const response = await fetch(`/pcbs/${pcbId}/tests`, {
+  const res = await fetch("/tests", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(data),
+    body: JSON.stringify({ ...data, pcb_id: pcbId }),
   });
-  if (!response.ok) throw new Error("Could not add test");
-  return response.json();
+  if (!res.ok) {
+    throw new Error(`Failed to add test: ${res.statusText}`);
+  }
+  return await res.json();
 }
 
-export async function getPCBImages(pcbId) {
-  const response = await fetch(`/pcbs/${pcbId}/images`);
-  if (!response.ok) throw new Error("Could not load PCB images");
-  return response.json();
-}
-
-export async function uploadPCBImage(pcbId, category, file, technician = 'Technician', testId = null) {
-  const formData = new FormData();
-  formData.append("category", category);
-  formData.append("technician", technician);
-  if (testId) formData.append("test_id", testId);
-  formData.append("file", file);
-
-  const response = await fetch(`/pcbs/${pcbId}/images`, {
+export async function uploadPCBImage(pcbId, formData) {
+  const res = await fetch(`/images/upload/${pcbId}`, {
     method: "POST",
     body: formData,
   });
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err.detail || "Could not upload image");
+  if (!res.ok) {
+    throw new Error(`Failed to upload image: ${res.statusText}`);
   }
-  return response.json();
+  return await res.json();
 }

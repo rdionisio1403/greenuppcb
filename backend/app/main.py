@@ -66,7 +66,7 @@ def view_full_relational_table(db: Session = Depends(get_db)):
             ORDER BY pcb_id, id DESC
         ) rep ON rep.pcb_id = p.id
         GROUP BY p.id, c.name, p.customer_name, p.equipment, p.status, p.customer_id, rep.filename_path
-        ORDER BY p.id;
+        ORDER BY p.id DESC;
     """)
 
     tests_query = text("""
@@ -385,6 +385,17 @@ def view_full_relational_table(db: Session = Depends(get_db)):
                 <h1>GreenUpPCB - Full Lifecycle Intelligence Table</h1>
                 <span class="sync-badge">● Real-time DB Sync</span>
             </div>
+                        <div style="padding: 16px 24px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 10px; flex: 1; max-width: 480px;">
+                    <span style="font-size: 16px;">🔍</span>
+                    <input type="text" id="tableSearchInput" placeholder="Search reference, serial, status, archived, customer, tests..." 
+                           style="width: 100%; padding: 8px 14px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 13px; outline: none; background: #ffffff; color: #0f172a;" 
+                           oninput="onSearchChange(this.value)" />
+                </div>
+                <div id="tableCounter" style="font-size: 13px; color: #64748b; font-weight: 500;">
+                    Loading items...
+                </div>
+            </div>
             <div class="table-responsive">
                 <table>
                     <thead>
@@ -406,6 +417,22 @@ def view_full_relational_table(db: Session = Depends(get_db)):
                         {table_rows}
                     </tbody>
                 </table>
+            </div>
+            <div style="padding: 14px 24px; background: #ffffff; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: #64748b;">
+                    <span>Rows per page:</span>
+                    <select id="pageSizeSelect" onchange="changePageSize(this.value)" style="padding: 4px 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 12px; background: #fff;">
+                        <option value="5">5</option>
+                        <option value="10" selected>10</option>
+                        <option value="25">25</option>
+                        <option value="all">All</option>
+                    </select>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <button id="btnPrevPage" onclick="prevPage()" style="padding: 6px 14px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; color: #334155;">Previous</button>
+                    <span id="pageIndicator" style="font-size: 13px; font-weight: 600; color: #334155; margin: 0 4px;">Page 1</span>
+                    <button id="btnNextPage" onclick="nextPage()" style="padding: 6px 14px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; color: #334155;">Next</button>
+                </div>
             </div>
         </div>
 
@@ -696,6 +723,110 @@ def view_full_relational_table(db: Session = Depends(get_db)):
                     alert('Error saving updates: ' + e.message);
                 }
             }
+
+            // --- Live Search & Pagination Engine ---
+            let currentPage = 1;
+            let pageSize = 10;
+            let filteredRows = [];
+
+            function getTableRows() {
+                const tbody = document.querySelector(".table-responsive tbody");
+                return Array.from(tbody ? tbody.querySelectorAll("tr") : []);
+            }
+
+            function applyTableFilterAndPagination() {
+                const allRows = getTableRows();
+                const query = (document.getElementById("tableSearchInput") ? document.getElementById("tableSearchInput").value : "").trim().toLowerCase();
+                
+                // Normalizasyon: "in diagnosis" <-> "in_diagnosis"
+                const cleanQuery = query.replace(/\s+/g, "_");
+
+                filteredRows = allRows.filter(row => {
+                    if (!query) return true;
+                    const text = row.innerText.toLowerCase();
+                    const textUnderscore = text.replace(/\s+/g, "_");
+                    
+                    // Doğrudan metin, alt çizgili metin veya archive prefix kontrolü
+                    if (text.includes(query) || textUnderscore.includes(cleanQuery)) return true;
+                    if (query.length >= 2 && ("archived".startsWith(query) || "archive".startsWith(query)) && text.includes("archived")) {
+                        return true;
+                    }
+                    return false;
+                });
+
+                const totalItems = filteredRows.length;
+                const effectivePageSize = pageSize === "all" ? (totalItems || 1) : parseInt(pageSize, 10);
+                const totalPages = Math.max(1, Math.ceil(totalItems / effectivePageSize));
+
+                if (currentPage > totalPages) currentPage = totalPages;
+                if (currentPage < 1) currentPage = 1;
+
+                const startIdx = (currentPage - 1) * effectivePageSize;
+                const endIdx = pageSize === "all" ? totalItems : startIdx + effectivePageSize;
+
+                allRows.forEach(row => { row.style.display = "none"; });
+                filteredRows.slice(startIdx, endIdx).forEach(row => { row.style.display = ""; });
+
+                // Sayaç ve sayfa göstergesi
+                const counter = document.getElementById("tableCounter");
+                if (counter) {
+                    if (totalItems === 0) {
+                        counter.innerText = query ? `No matching boards found for "${query}"` : "0 boards";
+                    } else {
+                        counter.innerText = `Showing ${Math.min(startIdx + 1, totalItems)}-${Math.min(endIdx, totalItems)} of ${totalItems} board${totalItems === 1 ? "" : "s"}`;
+                    }
+                }
+
+                const indicator = document.getElementById("pageIndicator");
+                if (indicator) indicator.innerText = `Page ${currentPage} of ${totalPages}`;
+
+                const btnPrev = document.getElementById("btnPrevPage");
+                if (btnPrev) {
+                    btnPrev.disabled = currentPage <= 1;
+                    btnPrev.style.opacity = currentPage <= 1 ? "0.5" : "1";
+                    btnPrev.style.cursor = currentPage <= 1 ? "not-allowed" : "pointer";
+                }
+
+                const btnNext = document.getElementById("btnNextPage");
+                if (btnNext) {
+                    btnNext.disabled = currentPage >= totalPages;
+                    btnNext.style.opacity = currentPage >= totalPages ? "0.5" : "1";
+                    btnNext.style.cursor = currentPage >= totalPages ? "not-allowed" : "pointer";
+                }
+            }
+
+            function onSearchChange(val) {
+                currentPage = 1;
+                applyTableFilterAndPagination();
+            }
+
+            function changePageSize(val) {
+                pageSize = val;
+                currentPage = 1;
+                applyTableFilterAndPagination();
+            }
+
+            function prevPage() {
+                if (currentPage > 1) {
+                    currentPage--;
+                    applyTableFilterAndPagination();
+                }
+            }
+
+            function nextPage() {
+                const effectivePageSize = pageSize === "all" ? filteredRows.length : parseInt(pageSize, 10);
+                const totalPages = Math.ceil(filteredRows.length / effectivePageSize);
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    applyTableFilterAndPagination();
+                }
+            }
+
+            // Sayfa yüklendiğinde otomatik başlat
+            window.addEventListener("DOMContentLoaded", () => {
+                applyTableFilterAndPagination();
+            });
+            setTimeout(applyTableFilterAndPagination, 100);
         </script>
     </body>
     </html>

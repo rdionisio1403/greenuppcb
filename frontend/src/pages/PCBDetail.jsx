@@ -1,17 +1,17 @@
 import React, { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { getPCB, addDiagnosis, addRepair, addTest, uploadPCBImage } from "../api/pcbs";
 
 export default function PCBDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
 
   const [pcb, setPcb] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Çift tıklama ve mükerrer kayıt engelleme bayrakları
+  // Duplicate submission protection flags
   const [savingDiag, setSavingDiag] = useState(false);
-  // Controls report compilation loading state
   const [generatingReport, setGeneratingReport] = useState(false);
   const [savingRepair, setSavingRepair] = useState(false);
   const [savingTest, setSavingTest] = useState(false);
@@ -45,7 +45,6 @@ export default function PCBDetail() {
     loadData();
   }, [id]);
 
-  // Trigger backend PDF compilation service for the active PCB
   const handleGenerateReport = async () => {
     if (generatingReport) return;
     setGeneratingReport(true);
@@ -59,7 +58,6 @@ export default function PCBDetail() {
         throw new Error(errData.detail || "Report generation failed");
       }
       alert("Inspection report compiled successfully!");
-      // Reload PCB lifecycle records to sync latest report metadata
       await loadData();
     } catch (err) {
       alert("Failed to generate report: " + err.message);
@@ -89,7 +87,7 @@ export default function PCBDetail() {
       a.remove();
       window.URL.revokeObjectURL(url);
     } catch (err) {
-      alert("Failed to download PDF report: " + err.message);
+      alert("Failed to download report: " + err.message);
     }
   };
 
@@ -98,15 +96,11 @@ export default function PCBDetail() {
     if (savingDiag) return;
     setSavingDiag(true);
     try {
-      const payload = {
-        ...diagForm,
-        diagnosis_date: new Date().toISOString().split("T")[0]
-      };
-      await addDiagnosis(id, payload);
+      await addDiagnosis(id, diagForm);
       setDiagForm({ technician: "", fault_found: "", recommended_action: "" });
       loadData();
     } catch (err) {
-      alert("Error adding diagnosis: " + err.message);
+      alert("Failed to add diagnosis: " + err.message);
     } finally {
       setSavingDiag(false);
     }
@@ -117,15 +111,11 @@ export default function PCBDetail() {
     if (savingRepair) return;
     setSavingRepair(true);
     try {
-      const payload = {
-        ...repairForm,
-        repair_date: new Date().toISOString().split("T")[0]
-      };
-      await addRepair(id, payload);
+      await addRepair(id, repairForm);
       setRepairForm({ technician: "", actions_taken: "", components_replaced: "" });
       loadData();
     } catch (err) {
-      alert("Error adding repair: " + err.message);
+      alert("Failed to add repair: " + err.message);
     } finally {
       setSavingRepair(false);
     }
@@ -136,15 +126,11 @@ export default function PCBDetail() {
     if (savingTest) return;
     setSavingTest(true);
     try {
-      const payload = {
-        ...testForm,
-        test_date: new Date().toISOString().split("T")[0]
-      };
-      await addTest(id, payload);
+      await addTest(id, testForm);
       setTestForm({ tester: "", test_type: "", result: "PASSED", notes: "" });
       loadData();
     } catch (err) {
-      alert("Error adding test: " + err.message);
+      alert("Failed to add test: " + err.message);
     } finally {
       setSavingTest(false);
     }
@@ -183,6 +169,15 @@ export default function PCBDetail() {
     );
   }
 
+  const isTestLocked = (test) => {
+    if (test.is_locked !== undefined) return test.is_locked;
+    if (!test.test_date) return false;
+    const testDate = new Date(test.test_date);
+    const now = new Date();
+    const diffDays = (now - testDate) / (1000 * 60 * 60 * 24);
+    return diffDays > 365;
+  };
+
   const inputStyle = {
     width: "100%",
     padding: "9px 12px",
@@ -206,6 +201,12 @@ export default function PCBDetail() {
     display: "inline-block"
   });
 
+  const lockedNotice = (
+    <div style={{ padding: "12px", backgroundColor: "rgba(234, 88, 12, 0.1)", border: "1px dashed rgba(234, 88, 12, 0.4)", borderRadius: "6px", color: "#fdba74", fontSize: "0.82rem", textAlign: "center" }}>
+      🔒 Record is archived and immutable under quality audit rules.
+    </div>
+  );
+
   return (
     <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "20px 16px", color: "#e6edf3", fontFamily: "Segoe UI, -apple-system, sans-serif" }}>
       
@@ -226,7 +227,6 @@ export default function PCBDetail() {
           ← Back to Registry
         </Link>
         <div style={{ display: "flex", gap: "10px" }}>
-          {/* Action button to compile latest lifecycle data into PDF */}
           <button
             onClick={handleGenerateReport}
             disabled={generatingReport}
@@ -249,25 +249,79 @@ export default function PCBDetail() {
           </button>
           <button 
             onClick={handleDownloadPDF}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "8px",
-            backgroundColor: "#1f6feb",
-            color: "#ffffff",
-            padding: "8px 16px",
-            borderRadius: "6px",
-            fontSize: "0.88rem",
-            fontWeight: "600",
-            cursor: "pointer",
-            border: "none",
-            boxShadow: "0 2px 4px rgba(0,0,0,0.2)"
-          }}
-        >
-          <span>📄</span> Download Inspection PDF
-        </button>
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              backgroundColor: "#1f6feb",
+              color: "#ffffff",
+              padding: "8px 16px",
+              borderRadius: "6px",
+              fontSize: "0.88rem",
+              fontWeight: "600",
+              cursor: "pointer",
+              border: "none",
+              boxShadow: "0 2px 4px rgba(0,0,0,0.2)"
+            }}
+          >
+            <span>📄</span> Download Inspection PDF
+          </button>
         </div>
       </div>
+
+      {/* Archived Notice Banner & Re-Intake Option */}
+      {pcb.is_archived && (
+        <div style={{
+          backgroundColor: "rgba(124, 45, 18, 0.25)",
+          border: "1px solid #ea580c",
+          borderRadius: "8px",
+          padding: "14px 18px",
+          marginBottom: "20px",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: "12px"
+        }}>
+          <div>
+            <div style={{ fontWeight: "700", color: "#fdba74", fontSize: "0.95rem", display: "flex", alignItems: "center", gap: "6px" }}>
+              <span>🔒</span> Quality Audit Rule: Unit Archived & Immutable
+            </div>
+            <div style={{ color: "#fed7aa", fontSize: "0.84rem", marginTop: "4px" }}>
+              All tests on this board are older than 1 year or unit lifecycle has closed. Direct edits are disabled.
+            </div>
+          </div>
+          <button
+            onClick={() => navigate("/new", {
+              state: {
+                reintake: {
+                  serial_number: pcb.serial_number || "",
+                  customer_name: pcb.customer_name || "",
+                  equipment: pcb.equipment || "",
+                  manufacturer: pcb.manufacturer || "",
+                  pcb_model: pcb.pcb_model || "",
+                }
+              }
+            })}
+            style={{
+              backgroundColor: "#ea580c",
+              color: "#ffffff",
+              border: "none",
+              padding: "8px 16px",
+              borderRadius: "6px",
+              fontWeight: "700",
+              fontSize: "0.85rem",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              boxShadow: "0 2px 6px rgba(234, 88, 12, 0.3)"
+            }}
+          >
+            <span>🔁</span> Re-Intake PCB (Start New Service Cycle)
+          </button>
+        </div>
+      )}
 
       {/* Main Board Info Card */}
       <div style={{ backgroundColor: "#161b22", border: "1px solid #30363d", borderRadius: "8px", padding: "24px", marginBottom: "24px", boxShadow: "0 4px 12px rgba(0,0,0,0.25)" }}>
@@ -280,17 +334,32 @@ export default function PCBDetail() {
               Equipment: <strong style={{ color: "#e6edf3" }}>{pcb.equipment}</strong>
             </div>
           </div>
-          <span style={{
-            backgroundColor: "rgba(31, 111, 235, 0.2)",
-            color: "#58a6ff",
-            border: "1px solid rgba(56, 139, 253, 0.4)",
-            padding: "4px 14px",
-            borderRadius: "20px",
-            fontSize: "0.84rem",
-            fontWeight: "600"
-          }}>
-            Status: {pcb.status}
-          </span>
+          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+            <span style={{
+              backgroundColor: "rgba(31, 111, 235, 0.2)",
+              color: "#58a6ff",
+              border: "1px solid rgba(56, 139, 253, 0.4)",
+              padding: "4px 14px",
+              borderRadius: "20px",
+              fontSize: "0.84rem",
+              fontWeight: "600"
+            }}>
+              Status: {pcb.status}
+            </span>
+            {pcb.is_archived && (
+              <span style={{
+                backgroundColor: "rgba(234, 88, 12, 0.2)",
+                color: "#fb923c",
+                border: "1px solid rgba(234, 88, 12, 0.5)",
+                padding: "4px 12px",
+                borderRadius: "20px",
+                fontSize: "0.82rem",
+                fontWeight: "700"
+              }}>
+                🔒 ARCHIVED
+              </span>
+            )}
+          </div>
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "12px", padding: "16px", backgroundColor: "#0d1117", borderRadius: "6px", border: "1px solid #21262d", fontSize: "0.88rem" }}>
@@ -309,7 +378,7 @@ export default function PCBDetail() {
         </div>
       </div>
 
-      {/* Grid 2 Sütun: Diagnosis & Repairs */}
+      {/* Grid: Diagnosis & Repairs */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "24px" }}>
         
         {/* Diagnosis Card */}
@@ -346,33 +415,35 @@ export default function PCBDetail() {
             )}
           </div>
 
-          <form onSubmit={handleAddDiagnosis} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            <input 
-              required 
-              style={inputStyle} 
-              placeholder="Technician Name" 
-              value={diagForm.technician} 
-              onChange={(e) => setDiagForm({ ...diagForm, technician: e.target.value })} 
-            />
-            <input 
-              required 
-              style={inputStyle} 
-              placeholder="Diagnostic Findings (fault found)" 
-              value={diagForm.fault_found} 
-              onChange={(e) => setDiagForm({ ...diagForm, fault_found: e.target.value })} 
-            />
-            <input 
-              style={inputStyle} 
-              placeholder="Recommended Action (optional)" 
-              value={diagForm.recommended_action} 
-              onChange={(e) => setDiagForm({ ...diagForm, recommended_action: e.target.value })} 
-            />
-            <div>
-              <button type="submit" disabled={savingDiag} style={btnSuccess(savingDiag)}>
-                {savingDiag ? "Adding..." : "+ Add Diagnosis"}
-              </button>
-            </div>
-          </form>
+          {pcb.is_archived ? lockedNotice : (
+            <form onSubmit={handleAddDiagnosis} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              <input 
+                required 
+                style={inputStyle} 
+                placeholder="Technician Name" 
+                value={diagForm.technician} 
+                onChange={(e) => setDiagForm({ ...diagForm, technician: e.target.value })} 
+              />
+              <input 
+                required 
+                style={inputStyle} 
+                placeholder="Diagnostic Findings (fault found)" 
+                value={diagForm.fault_found} 
+                onChange={(e) => setDiagForm({ ...diagForm, fault_found: e.target.value })} 
+              />
+              <input 
+                style={inputStyle} 
+                placeholder="Recommended Action (optional)" 
+                value={diagForm.recommended_action} 
+                onChange={(e) => setDiagForm({ ...diagForm, recommended_action: e.target.value })} 
+              />
+              <div>
+                <button type="submit" disabled={savingDiag} style={btnSuccess(savingDiag)}>
+                  {savingDiag ? "Adding..." : "+ Add Diagnosis"}
+                </button>
+              </div>
+            </form>
+          )}
         </div>
 
         {/* Repairs Card */}
@@ -409,33 +480,35 @@ export default function PCBDetail() {
             )}
           </div>
 
-          <form onSubmit={handleAddRepair} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            <input 
-              required 
-              style={inputStyle} 
-              placeholder="Technician Name" 
-              value={repairForm.technician} 
-              onChange={(e) => setRepairForm({ ...repairForm, technician: e.target.value })} 
-            />
-            <input 
-              required 
-              style={inputStyle} 
-              placeholder="Actions Taken" 
-              value={repairForm.actions_taken} 
-              onChange={(e) => setRepairForm({ ...repairForm, actions_taken: e.target.value })} 
-            />
-            <input 
-              style={inputStyle} 
-              placeholder="Components Replaced (optional)" 
-              value={repairForm.components_replaced} 
-              onChange={(e) => setRepairForm({ ...repairForm, components_replaced: e.target.value })} 
-            />
-            <div>
-              <button type="submit" disabled={savingRepair} style={btnSuccess(savingRepair)}>
-                {savingRepair ? "Adding..." : "+ Add Repair"}
-              </button>
-            </div>
-          </form>
+          {pcb.is_archived ? lockedNotice : (
+            <form onSubmit={handleAddRepair} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              <input 
+                required 
+                style={inputStyle} 
+                placeholder="Technician Name" 
+                value={repairForm.technician} 
+                onChange={(e) => setRepairForm({ ...repairForm, technician: e.target.value })} 
+              />
+              <input 
+                required 
+                style={inputStyle} 
+                placeholder="Actions Taken" 
+                value={repairForm.actions_taken} 
+                onChange={(e) => setRepairForm({ ...repairForm, actions_taken: e.target.value })} 
+              />
+              <input 
+                style={inputStyle} 
+                placeholder="Components Replaced (optional)" 
+                value={repairForm.components_replaced} 
+                onChange={(e) => setRepairForm({ ...repairForm, components_replaced: e.target.value })} 
+              />
+              <div>
+                <button type="submit" disabled={savingRepair} style={btnSuccess(savingRepair)}>
+                  {savingRepair ? "Adding..." : "+ Add Repair"}
+                </button>
+              </div>
+            </form>
+          )}
         </div>
 
       </div>
@@ -452,10 +525,26 @@ export default function PCBDetail() {
           ) : (
             pcb.tests.map((t) => {
               const isPassed = (t.result || "").toUpperCase() === "PASSED";
+              const locked = isTestLocked(t);
               return (
                 <div key={t.id} style={{ backgroundColor: "#0d1117", border: "1px solid #21262d", borderRadius: "6px", padding: "16px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                    <strong style={{ color: "#3fb950", fontSize: "0.95rem" }}>{t.tester || t.technician}</strong>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <strong style={{ color: "#3fb950", fontSize: "0.95rem" }}>{t.tester || t.technician}</strong>
+                      {locked && (
+                        <span style={{
+                          backgroundColor: "#7c2d12",
+                          color: "#fdba74",
+                          border: "1px solid #ea580c",
+                          padding: "2px 6px",
+                          borderRadius: "4px",
+                          fontSize: "0.7rem",
+                          fontWeight: "700"
+                        }}>
+                          🔒 Locked (&gt;1 yr)
+                        </span>
+                      )}
+                    </div>
                     <span style={{
                       backgroundColor: isPassed ? "rgba(35, 134, 54, 0.2)" : "rgba(218, 54, 51, 0.2)",
                       color: isPassed ? "#3fb950" : "#f85149",
@@ -487,41 +576,43 @@ export default function PCBDetail() {
           )}
         </div>
 
-        <form onSubmit={handleAddTest} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          <input 
-            required 
-            style={inputStyle} 
-            placeholder="Tester / Technician Name" 
-            value={testForm.tester} 
-            onChange={(e) => setTestForm({ ...testForm, tester: e.target.value })} 
-          />
-          <input 
-            required 
-            style={inputStyle} 
-            placeholder="Test Type (e.g. DC Load)" 
-            value={testForm.test_type} 
-            onChange={(e) => setTestForm({ ...testForm, test_type: e.target.value })} 
-          />
-          <select 
-            style={inputStyle} 
-            value={testForm.result} 
-            onChange={(e) => setTestForm({ ...testForm, result: e.target.value })}
-          >
-            <option value="PASSED">PASSED</option>
-            <option value="FAILED">FAILED</option>
-          </select>
-          <input 
-            style={inputStyle} 
-            placeholder="Test Notes (optional)" 
-            value={testForm.notes} 
-            onChange={(e) => setTestForm({ ...testForm, notes: e.target.value })} 
-          />
-          <div>
-            <button type="submit" disabled={savingTest} style={btnSuccess(savingTest)}>
-              {savingTest ? "Adding..." : "+ Add Test"}
-            </button>
-          </div>
-        </form>
+        {pcb.is_archived ? lockedNotice : (
+          <form onSubmit={handleAddTest} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            <input 
+              required 
+              style={inputStyle} 
+              placeholder="Tester / Technician Name" 
+              value={testForm.tester} 
+              onChange={(e) => setTestForm({ ...testForm, tester: e.target.value })} 
+            />
+            <input 
+              required 
+              style={inputStyle} 
+              placeholder="Test Type (e.g. DC Load)" 
+              value={testForm.test_type} 
+              onChange={(e) => setTestForm({ ...testForm, test_type: e.target.value })} 
+            />
+            <select 
+              style={inputStyle} 
+              value={testForm.result} 
+              onChange={(e) => setTestForm({ ...testForm, result: e.target.value })}
+            >
+              <option value="PASSED">PASSED</option>
+              <option value="FAILED">FAILED</option>
+            </select>
+            <input 
+              style={inputStyle} 
+              placeholder="Test Notes (optional)" 
+              value={testForm.notes} 
+              onChange={(e) => setTestForm({ ...testForm, notes: e.target.value })} 
+            />
+            <div>
+              <button type="submit" disabled={savingTest} style={btnSuccess(savingTest)}>
+                {savingTest ? "Adding..." : "+ Add Test"}
+              </button>
+            </div>
+          </form>
+        )}
       </div>
 
       {/* Visual Inspection Images Section */}
@@ -530,73 +621,74 @@ export default function PCBDetail() {
           <span>📷</span> Inspection & Defect Images ({pcb.images ? pcb.images.length : 0})
         </h4>
 
-        {/* Upload Bar */}
-        <form onSubmit={handleImageUpload} style={{ display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "center", padding: "14px", backgroundColor: "#0d1117", borderRadius: "6px", border: "1px solid #21262d", marginBottom: "20px" }}>
-          <select
-            value={uploadCategory}
-            onChange={(e) => setUploadCategory(e.target.value)}
-            style={{ padding: "8px 12px", backgroundColor: "#161b22", color: "#e6edf3", border: "1px solid #30363d", borderRadius: "6px", fontSize: "0.85rem" }}
-          >
-            <option value="before">Before Repair</option>
-            <option value="during">During Test</option>
-            <option value="defect">Defect</option>
-            <option value="after">After Repair</option>
-          </select>
+        {pcb.is_archived ? lockedNotice : (
+          <form onSubmit={handleImageUpload} style={{ display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "center", padding: "14px", backgroundColor: "#0d1117", borderRadius: "6px", border: "1px solid #21262d", marginBottom: "20px" }}>
+            <select
+              value={uploadCategory}
+              onChange={(e) => setUploadCategory(e.target.value)}
+              style={{ padding: "8px 12px", backgroundColor: "#161b22", color: "#e6edf3", border: "1px solid #30363d", borderRadius: "6px", fontSize: "0.85rem" }}
+            >
+              <option value="before">Before Repair</option>
+              <option value="during">During Test</option>
+              <option value="defect">Defect</option>
+              <option value="after">After Repair</option>
+            </select>
 
-          <input
-            type="text"
-            list="technicians-list"
-            placeholder="Technician Name (e.g. Sema)"
-            value={imageTechnician}
-            onChange={(e) => {
-              setImageTechnician(e.target.value);
-              setSelectedTestId("");
-            }}
-            style={{ padding: "8px 12px", backgroundColor: "#161b22", color: "#e6edf3", border: "1px solid #30363d", borderRadius: "6px", fontSize: "0.85rem", width: "190px" }}
-          />
-          <datalist id="technicians-list">
-            {Array.from(new Set([
-              ...(pcb.diagnoses || []).map(d => d.technician),
-              ...(pcb.repairs || []).map(r => r.technician),
-              ...(pcb.tests || []).map(t => t.tester || t.technician)
-            ])).filter(Boolean).map((tech, idx) => (
-              <option key={idx} value={tech} />
-            ))}
-          </datalist>
-
-          <select
-            value={selectedTestId}
-            onChange={(e) => setSelectedTestId(e.target.value)}
-            style={{ padding: "8px 12px", backgroundColor: "#161b22", color: "#e6edf3", border: "1px solid #30363d", borderRadius: "6px", fontSize: "0.85rem" }}
-          >
-            <option value="">Linked Test: None (General)</option>
-            {(pcb.tests || [])
-              .filter(t => {
-                if (!imageTechnician.trim()) return true;
-                const tName = (t.tester || t.technician || "").trim().toLowerCase();
-                const sName = imageTechnician.trim().toLowerCase();
-                return tName.includes(sName);
-              })
-              .map((t) => (
-                <option key={t.id} value={t.id}>Linked Test: {t.test_type} ({t.tester || t.technician})</option>
+            <input
+              type="text"
+              list="technicians-list"
+              placeholder="Technician Name (e.g. Sema)"
+              value={imageTechnician}
+              onChange={(e) => {
+                setImageTechnician(e.target.value);
+                setSelectedTestId("");
+              }}
+              style={{ padding: "8px 12px", backgroundColor: "#161b22", color: "#e6edf3", border: "1px solid #30363d", borderRadius: "6px", fontSize: "0.85rem", width: "190px" }}
+            />
+            <datalist id="technicians-list">
+              {Array.from(new Set([
+                ...(pcb.diagnoses || []).map(d => d.technician),
+                ...(pcb.repairs || []).map(r => r.technician),
+                ...(pcb.tests || []).map(t => t.tester || t.technician)
+              ])).filter(Boolean).map((tech, idx) => (
+                <option key={idx} value={tech} />
               ))}
-          </select>
+            </datalist>
 
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(e) => setSelectedFile(e.target.files[0])}
-            style={{ fontSize: "0.85rem", color: "#8b949e" }}
-          />
+            <select
+              value={selectedTestId}
+              onChange={(e) => setSelectedTestId(e.target.value)}
+              style={{ padding: "8px 12px", backgroundColor: "#161b22", color: "#e6edf3", border: "1px solid #30363d", borderRadius: "6px", fontSize: "0.85rem" }}
+            >
+              <option value="">Linked Test: None (General)</option>
+              {(pcb.tests || [])
+                .filter(t => {
+                  if (!imageTechnician.trim()) return true;
+                  const tName = (t.tester || t.technician || "").trim().toLowerCase();
+                  const sName = imageTechnician.trim().toLowerCase();
+                  return tName.includes(sName);
+                })
+                .map((t) => (
+                  <option key={t.id} value={t.id}>Linked Test: {t.test_type} ({t.tester || t.technician})</option>
+                ))}
+            </select>
 
-          <button
-            type="submit"
-            disabled={uploading}
-            style={btnSuccess(uploading)}
-          >
-            {uploading ? "Uploading..." : "+ Upload Image"}
-          </button>
-        </form>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setSelectedFile(e.target.files[0])}
+              style={{ fontSize: "0.85rem", color: "#8b949e" }}
+            />
+
+            <button
+              type="submit"
+              disabled={uploading}
+              style={btnSuccess(uploading)}
+            >
+              {uploading ? "Uploading..." : "+ Upload Image"}
+            </button>
+          </form>
+        )}
 
         {/* Images Grid */}
         {(!pcb.images || pcb.images.length === 0) ? (
