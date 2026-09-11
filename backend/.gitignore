@@ -2,7 +2,7 @@
 uploads/*
 !uploads/.gitkeep
 
-# PDF ve Üretilen Raporları Kesinlikle Takip Etme
+# Strictly Track PDFs and Generated Reports
 *.pdf
 reports/
 backend/reports/
