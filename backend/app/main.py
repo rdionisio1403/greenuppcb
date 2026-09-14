@@ -7,7 +7,7 @@ import os
 
 from app.database import engine, Base
 from app.dependencies import get_db
-from app.routers import dashboard,  customer, pcb, diagnosis, repair, test, image, report
+from app.routers import dashboard, customer, pcb, diagnosis, repair, test, image, report, auth
 
 Base.metadata.create_all(bind=engine)
 
@@ -41,6 +41,7 @@ app.include_router(test.router)
 app.include_router(image.router)
 app.include_router(report.router)
 app.include_router(dashboard.router)
+app.include_router(auth.router)
 
 
 @app.get("/view-table", response_class=HTMLResponse, tags=["General"])

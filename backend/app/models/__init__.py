@@ -5,3 +5,4 @@ from app.models.repair import Repair
 from app.models.test import Test
 from app.models.image import Image
 from app.models.report import Report
+from app.models.user import User
