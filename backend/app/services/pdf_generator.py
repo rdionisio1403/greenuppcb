@@ -46,7 +46,7 @@ def generate_pcb_pdf(pcb_data: dict, images_list: list) -> str:
     cell_style = ParagraphStyle("Cell", parent=styles["Normal"], fontSize=8.5, leading=11.5)
     cell_bold = ParagraphStyle("CellB", parent=styles["Normal"], fontName="Helvetica-Bold", fontSize=8.5, leading=11.5)
     
-    # SADECE LACİVERT BAŞLIK İÇİN BEYAZ STİL
+    # WHITE STYLE FOR NAVY BLUE HEADBOARD ONLY
     header_white = ParagraphStyle(
         "HeaderW",
         parent=styles["Normal"],

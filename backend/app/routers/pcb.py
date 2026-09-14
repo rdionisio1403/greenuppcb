@@ -111,7 +111,7 @@ def list_pcbs(
             cast(PCB.date_received, String).ilike(pat),
         ]
 
-        # Kullanici a, ar, arc, archive veya archived yazdikca eslestir
+        # Match as the user types a, ar, arc, archive, or archived.
         t_low = term.lower()
         if len(t_low) >= 2 and ("archived".startswith(t_low) or "archive".startswith(t_low) or "archiv" in t_low):
             all_pcbs = db.query(PCB).all()

@@ -12,10 +12,10 @@ def test_health_check():
 
 
 def test_full_pcb_and_child_resources_flow():
-    # Benzersiz referans için standart zaman damgası
+    # Standard timestamp for unique reference
     test_ref = f"PCB-LAB-{int(time.time())}"
 
-# 1. PCB Tablosu: Oluşturma (POST)
+# 1. PCB Table: Creation (POST)
     pcb_payload = {
         "internal_reference": test_ref,
         "customer_name": "ABB Drives",
@@ -30,7 +30,7 @@ def test_full_pcb_and_child_resources_flow():
     assert create_res.status_code == 201
     pcb_id = create_res.json()["id"]
 
-# 2. PCB Tablosu: Listeleme ve Detay (GET)
+# 2. PCB Table: Listing and Details (GET)
     list_res = client.get("/pcbs")
     assert list_res.status_code == 200
     
@@ -38,7 +38,7 @@ def test_full_pcb_and_child_resources_flow():
     assert get_res.status_code == 200
     assert get_res.json()["internal_reference"] == test_ref
 
-    # 3. PCB Tablosu: Güncelleme (PATCH)
+    # 3. PCB Board: Update (PATCH)
     patch_payload = {
         "internal_reference": test_ref,
         "customer_name": "ABB Drives Portugal",
@@ -49,7 +49,7 @@ def test_full_pcb_and_child_resources_flow():
     patch_res = client.patch(f"/pcbs/{pcb_id}", json=patch_payload)
     assert patch_res.status_code == 200
 
-# 4. Diagnoses Tablosu: Ekleme ve Listeleme
+# 4. Diagnoses Table: Adding and Listing
     diag_payload = {
         "diagnosis_date": "2026-08-31",
         "technician": "Sema",
@@ -60,7 +60,7 @@ def test_full_pcb_and_child_resources_flow():
     assert diag_res.status_code == 201
     assert client.get(f"/pcbs/{pcb_id}/diagnoses").status_code == 200
 
-# 5. Repairs Tablosu: Ekleme ve Listeleme
+# 5. Repairs Table: Adding and Listing
     repair_payload = {
         "repair_date": "2026-08-31",
         "technician": "Sema",
@@ -71,7 +71,7 @@ def test_full_pcb_and_child_resources_flow():
     assert repair_res.status_code == 201
     assert client.get(f"/pcbs/{pcb_id}/repairs").status_code == 200
 
-# 6. Tests Tablosu: Ekleme ve Listeleme
+# 6. Tests Table: Adding and Listing
     test_payload = {
         "test_date": "2026-08-31",
         "tester": "Sema",

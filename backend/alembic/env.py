@@ -4,22 +4,22 @@ from sqlalchemy import engine_from_config, pool
 from alembic import context
 from dotenv import load_dotenv
 
-# .env dosyasını oku
+# Read the .env file
 load_dotenv()
 
-# Alembic Config nesnesi
+# Alembic Config object
 config = context.config
 
-# DATABASE_URL'i .env'den al ve Alembic'e aktar
+# Get DATABASE_URL from .env and import into Alembic
 db_url = os.getenv("DATABASE_URL")
 if db_url:
     config.set_main_option("sqlalchemy.url", db_url)
 
-# Python logging yapılandırması
+# Python logging configuration
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Model metadata'sını bağla
+# Link the model metadata.
 from app.database import Base
 import app.models
 

@@ -15,13 +15,15 @@ The database follows a normalized 1-to-Many relational structure:
 - A diagnosis can optionally be associated with a system user.
 - Customers are stored separately; however, `pcbs.customer_id` currently has no database-level foreign key constraint to `customers.id`.
 
-The authentication structure is implemented through the `users` table:
+### Authentication
+
+The `users` table stores authenticated application users:
 
 - `username` is unique.
 - `email` is unique.
-- Passwords are stored as `password_hash`.
+- Passwords are stored in `password_hash`.
 - User roles are stored in `role`.
-- Diagnosis records can optionally reference the user who created or performed the diagnosis through `diagnoses.user_id`.
+- Diagnosis records can optionally reference the user through `diagnoses.user_id`.
 
 ### PCB Re-Intake and Traceability
 
@@ -111,8 +113,7 @@ erDiagram
         int user_id FK
     }
 
-
-  REPAIRS {
+    REPAIRS {
         int id PK
         int pcb_id FK
         date date
@@ -132,7 +133,7 @@ erDiagram
         text notes
     }
 
- IMAGES {
+    IMAGES {
         int id PK
         int pcb_id FK
         varchar category
@@ -209,7 +210,6 @@ CREATE TABLE diagnoses (
         ON DELETE SET NULL
 );
 
-
 -- 5. Repairs Table
 CREATE TABLE repairs (
     id SERIAL PRIMARY KEY,
@@ -279,63 +279,53 @@ CREATE TABLE reports (
 -- Indices for Foreign Keys and Query Performance
 
 -- PCB customer lookup
-CREATE INDEX idx_pcbs_customer_id
-    ON pcbs(customer_id);
+CREATE INDEX idx_pcbs_customer_id ON pcbs(customer_id);
 
 -- Diagnosis lookups
-CREATE INDEX idx_diagnoses_pcb_id
-    ON diagnoses(pcb_id);
-
-CREATE INDEX idx_diagnoses_user_id
-    ON diagnoses(user_id);
+CREATE INDEX idx_diagnoses_pcb_id ON diagnoses(pcb_id);
+CREATE INDEX idx_diagnoses_user_id ON diagnoses(user_id);
 
 -- Repair lookups
-CREATE INDEX idx_repairs_pcb_id
-    ON repairs(pcb_id);
+CREATE INDEX idx_repairs_pcb_id ON repairs(pcb_id);
 
 -- Test lookups
-CREATE INDEX idx_tests_pcb_id
-    ON tests(pcb_id);
+CREATE INDEX idx_tests_pcb_id ON tests(pcb_id);
 
 -- Image lookups
-CREATE INDEX idx_images_pcb_id
-    ON images(pcb_id);
-
-CREATE INDEX idx_images_test_id
-    ON images(test_id);
+CREATE INDEX idx_images_pcb_id ON images(pcb_id);
+CREATE INDEX idx_images_test_id ON images(test_id);
 
 -- Report lookups
-CREATE INDEX idx_reports_pcb_id
-    ON reports(pcb_id);
+CREATE INDEX idx_reports_pcb_id ON reports(pcb_id);
 ```
 
 ## 4. Sample Data Walkthrough (SQL Insert Script)
 
 ```sql
--- Step 0 — Create a User
+-- Step 0: Register User
 INSERT INTO users (id, username, email, password_hash, role) VALUES (1, 'testuser', 'testuser@example.com', '$2b$12$example_hash', 'user');
 
--- Step 1 — Create a Customer
-INSERT INTO customers (id, name, contact_info, reference) VALUES (1, 'Example Customer', 'customer@example.com', 'CUST-001');
-
--- Step 2 — Register the PCB
+-- Step 1: Register Customer
 INSERT INTO pcbs (id, internal_reference, customer_name, equipment, manufacturer, pcb_model, serial_number, date_received, failure_description, status, created_at, customer_id, data_received) VALUES (1, 'PCB-2026-0001', 'Example Customer', 'Industrial Controller', 'Example Manufacturer', 'CTRL-100', 'SN-2026-001', '2026-09-01', 'Device does not power on', 'Received', CURRENT_TIMESTAMP, 1, CURRENT_DATE);
 
--- Step 3 — Add a Diagnosis
+-- Step 2: Receive & Register PCB (Initial Intake)
+INSERT INTO pcbs (id, internal_reference, customer_name, equipment, manufacturer, pcb_model, serial_number, date_received, failure_description, status, created_at, customer_id, data_received) VALUES (1, 'PCB-2026-0001', 'Example Customer', 'Industrial Controller', 'Example Manufacturer', 'CTRL-100', 'SN-2026-001', '2026-09-01', 'Device does not power on', 'Received', CURRENT_TIMESTAMP, 1, CURRENT_DATE);
+
+-- Step 3: Add Diagnosis
 INSERT INTO diagnoses (id, pcb_id, date, technician, findings, notes, user_id) VALUES (1, 1, '2026-09-02', 'Technician A', 'Power supply section failure detected', 'Further repair required', 1);
 
--- Step 4 — Record the Repair
+-- Step 4: Add Repair
 INSERT INTO repairs (id, pcb_id, date, technician, action, components_rep, notes) VALUES (1, 1, '2026-09-03', 'Technician A', 'Replaced damaged power components', 'MOSFET, capacitor', 'PCB powered on after repair');
 
--- Step 5 — Perform a Test
+-- Step 5: Add Test Verification
 INSERT INTO tests (id, pcb_id, date, tester, test_type, result, notes) VALUES (1, 1, '2026-09-04', 'Technician A', 'Functional Test', 'PASS', 'All required functions verified');
 
--- Step 6 — Add a General PCB Image
+-- Step 6: Attach Intake Image
 INSERT INTO images (id, pcb_id, category, filename_path, uploaded_at, technician, test_id) VALUES (1, 1, 'PCB Before Repair', '/uploads/pcb_before.jpg', CURRENT_TIMESTAMP, 'Technician A', NULL);
 
--- Step 7 — Add Test Evidence Image
+-- Step 7: Attach Verification Image
 INSERT INTO images (id, pcb_id, category, filename_path, uploaded_at, technician, test_id) VALUES (2, 1, 'Test Evidence', '/uploads/test_1.jpg', CURRENT_TIMESTAMP, 'Technician A', 1);
 
--- Step 8 — Generate a Report
+-- Step 8: Generate Service Report
 INSERT INTO reports (id, pcb_id, filename_path, generated_at) VALUES (1, 1, '/reports/PCB-2026-0001.pdf', CURRENT_TIMESTAMP);
 ```
