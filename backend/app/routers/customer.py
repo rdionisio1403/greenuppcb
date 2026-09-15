@@ -2,7 +2,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_db
+from app.dependencies import get_db, get_current_user
 from app.models.customer import Customer
 from app.schemas.customer import CustomerCreate, CustomerRead
 
@@ -10,7 +10,7 @@ router = APIRouter(prefix="/customers", tags=["Customers"])
 
 
 @router.post("", response_model=CustomerRead, status_code=201)
-def create_customer(data: CustomerCreate, db: Session = Depends(get_db)):
+def create_customer(data: CustomerCreate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     """Creates a new customer entry."""
     customer = Customer(**data.model_dump())
     db.add(customer)
@@ -20,13 +20,13 @@ def create_customer(data: CustomerCreate, db: Session = Depends(get_db)):
 
 
 @router.get("", response_model=List[CustomerRead])
-def list_customers(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
+def list_customers(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     """Retrieves all customers with pagination."""
     return db.query(Customer).offset(skip).limit(limit).all()
 
 
 @router.get("/{id}", response_model=CustomerRead)
-def get_customer(id: int, db: Session = Depends(get_db)):
+def get_customer(id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     """Retrieves a single customer by primary ID."""
     customer = db.query(Customer).filter(Customer.id == id).first()
     if not customer:

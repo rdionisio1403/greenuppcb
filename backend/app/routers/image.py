@@ -8,7 +8,7 @@ from PIL import Image as PILImage
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_db
+from app.dependencies import get_db, get_current_user
 from app.models.pcb import PCB
 from app.models.image import Image
 from app.schemas.image import ImageRead
@@ -55,7 +55,8 @@ async def upload_pcb_image(
     technician: str = Form("Technician", description="Technician who uploaded the image"),
     test_id: Optional[int] = Form(None, description="Optional associated test ID"),
     file: UploadFile = File(..., description="Image file to upload"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
 ):
     """Uploads and associates an inspection image with a PCB lifecycle stage."""
     pcb = db.query(PCB).filter(PCB.id == pcb_id).first()
@@ -104,7 +105,7 @@ async def upload_pcb_image(
 
 
 @router.get("", response_model=List[ImageRead])
-def list_images(pcb_id: int, db: Session = Depends(get_db)):
+def list_images(pcb_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     """Retrieves all inspection images associated with the specified PCB."""
     pcb = db.query(PCB).filter(PCB.id == pcb_id).first()
     if not pcb:

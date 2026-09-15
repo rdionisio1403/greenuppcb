@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { apiFetch } from "../api/apiFetch";
 
 export default function Dashboard() {
   const [data, setData] = useState(null);
@@ -7,7 +8,7 @@ export default function Dashboard() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    fetch("/dashboard/summary")
+    apiFetch("/dashboard/summary")
       .then((res) => {
         if (!res.ok) throw new Error("HTTP error: " + res.status);
         return res.json();

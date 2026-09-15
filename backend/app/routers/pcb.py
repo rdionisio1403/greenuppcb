@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import or_, cast, String, func
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_db
+from app.dependencies import get_db, get_current_user
 from app.models.pcb import PCB
 from app.models.customer import Customer
 from app.schemas.pcb import PCBCreate, PCBRead, PCBDetailRead, PCBUpdate, PCBStatus, PaginatedPCBRead
@@ -58,7 +58,7 @@ def normalize_pcb(pcb):
 
 
 @router.post("", response_model=PCBRead, status_code=201)
-def create_pcb(data: PCBCreate, db: Session = Depends(get_db)):
+def create_pcb(data: PCBCreate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     existing = db.query(PCB).filter(PCB.internal_reference == data.internal_reference).first()
     if existing:
         raise HTTPException(status_code=409, detail="Internal reference already exists")
@@ -91,7 +91,8 @@ def list_pcbs(
     q: Optional[str] = None,
     page: int = 1,
     limit: int = 10,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
 ):
     query = db.query(PCB)
     if q and q.strip():
@@ -137,7 +138,7 @@ def list_pcbs(
 
 
 @router.get("/{id}", response_model=PCBDetailRead)
-def get_pcb(id: int, db: Session = Depends(get_db)):
+def get_pcb(id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     pcb = db.query(PCB).filter(PCB.id == id).first()
     if not pcb:
         raise HTTPException(status_code=404, detail="PCB not found")
@@ -145,7 +146,7 @@ def get_pcb(id: int, db: Session = Depends(get_db)):
 
 
 @router.patch("/{id}", response_model=PCBRead)
-def update_pcb(id: int, data: PCBUpdate, db: Session = Depends(get_db)):
+def update_pcb(id: int, data: PCBUpdate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     pcb = db.query(PCB).filter(PCB.id == id).first()
     if not pcb:
         raise HTTPException(status_code=404, detail="PCB not found")

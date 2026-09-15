@@ -1,11 +1,12 @@
 // Using relative paths to route requests cleanly through Vite dev server proxy
+import { apiFetch } from "./apiFetch";
 export async function getPCBs(q = "", page = 1, limit = 10) {
   const params = new URLSearchParams();
   if (q && q.trim()) params.append("q", q.trim());
   params.append("page", page);
   params.append("limit", limit);
 
-  const res = await fetch(`/pcbs?${params.toString()}`);
+  const res = await apiFetch(`/pcbs?${params.toString()}`);
   if (!res.ok) {
     throw new Error(`Failed to fetch PCBs: ${res.statusText}`);
   }
@@ -13,7 +14,7 @@ export async function getPCBs(q = "", page = 1, limit = 10) {
 }
 
 export async function getPCB(id) {
-  const res = await fetch(`/pcbs/${id}`);
+  const res = await apiFetch(`/pcbs/${id}`);
   if (!res.ok) {
     throw new Error(`Failed to fetch PCB details: ${res.statusText}`);
   }
@@ -21,7 +22,7 @@ export async function getPCB(id) {
 }
 
 export async function createPCB(data) {
-  const res = await fetch("/pcbs", {
+  const res = await apiFetch("/pcbs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -33,7 +34,7 @@ export async function createPCB(data) {
 }
 
 export async function addDiagnosis(pcbId, data) {
-  const res = await fetch("/diagnoses", {
+  const res = await apiFetch("/diagnoses", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ...data, pcb_id: pcbId }),
@@ -45,7 +46,7 @@ export async function addDiagnosis(pcbId, data) {
 }
 
 export async function addRepair(pcbId, data) {
-  const res = await fetch("/repairs", {
+  const res = await apiFetch("/repairs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ...data, pcb_id: pcbId }),
@@ -57,7 +58,7 @@ export async function addRepair(pcbId, data) {
 }
 
 export async function addTest(pcbId, data) {
-  const res = await fetch("/tests", {
+  const res = await apiFetch("/tests", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ...data, pcb_id: pcbId }),
@@ -69,7 +70,7 @@ export async function addTest(pcbId, data) {
 }
 
 export async function uploadPCBImage(pcbId, formData) {
-  const res = await fetch(`/images/upload/${pcbId}`, {
+  const res = await apiFetch(`/images/upload/${pcbId}`, {
     method: "POST",
     body: formData,
   });

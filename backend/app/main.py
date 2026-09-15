@@ -6,7 +6,7 @@ from sqlalchemy import text
 import os
 
 from app.database import engine, Base
-from app.dependencies import get_db
+from app.dependencies import get_db, get_current_user
 from app.routers import dashboard, customer, pcb, diagnosis, repair, test, image, report, auth
 
 Base.metadata.create_all(bind=engine)
@@ -56,10 +56,22 @@ def view_full_relational_table(db: Session = Depends(get_db)):
             p.customer_id,
             rep.filename_path AS pdf_file,
             COALESCE(string_agg(DISTINCT CONCAT('• ', d.findings), '<br>'), '-') AS diagnosis,
+            COALESCE(
+                string_agg(
+                    DISTINCT CASE
+                        WHEN u.username IS NOT NULL
+                        THEN CONCAT('👤 ', u.username)
+                        ELSE NULL
+                    END,
+                    '<br>'
+                ),
+                '-'
+            ) AS diagnosis_users,
             COALESCE(string_agg(DISTINCT CONCAT('• ', r.action), '<br>'), '-') AS repair_done
         FROM pcbs p
         LEFT JOIN customers c ON p.customer_id = c.id
         LEFT JOIN diagnoses d ON d.pcb_id = p.id
+        LEFT JOIN users u ON u.id = d.user_id
         LEFT JOIN repairs r ON r.pcb_id = p.id
         LEFT JOIN (
             SELECT DISTINCT ON (pcb_id) pcb_id, filename_path 
@@ -172,6 +184,22 @@ def view_full_relational_table(db: Session = Depends(get_db)):
         cust_id = m['customer_id'] or 'null'
         
         status_badge = f'<span class="badge-status">{m["status"]}</span>'
+
+        diagnosis_user_html = (
+            f'<div style="margin-top:12px; padding-top:10px; border-top:1px solid #e2e8f0;">'
+            f'<div style="font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; color:#64748b; margin-bottom:5px;">USER</div>'
+            f'<div style="font-size:12px; font-weight:700; color:#334155;">{m["diagnosis_users"]}</div>'
+            f'</div>'
+        )
+
+        diagnosis_html = (
+            f'<div>'
+            f'<div style="font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; color:#64748b; margin-bottom:6px;">DIAGNOSIS</div>'
+            f'<div>{m["diagnosis"]}</div>'
+            f'{diagnosis_user_html}'
+            f'</div>'
+        )
+
         if all_tests_archived:
             status_badge += ' <span style="font-size:10px; font-weight:700; background:#fef2f2; color:#b91c1c; border:1px solid #fca5a5; border-radius:4px; padding:2px 5px; display:inline-block; margin-top:4px;">🔒 ARCHIVED</span>'
 
@@ -182,7 +210,7 @@ def view_full_relational_table(db: Session = Depends(get_db)):
             <td style="font-weight: 700; color: #0f172a;">{m['customer']}</td>
             <td style="color: #1e293b; font-weight: 600;">{m['equipment']}</td>
             <td>{status_badge}</td>
-            <td style="color: #1e293b; line-height: 1.6;">{m['diagnosis']}</td>
+            <td style="color: #1e293b; line-height: 1.6;">{diagnosis_html}</td>
             <td style="color: #1e293b; line-height: 1.6;">{m['repair_done']}</td>
             <td>{test_evaluation_html}</td>
             <td>{imgs_html}</td>
@@ -437,6 +465,7 @@ def view_full_relational_table(db: Session = Depends(get_db)):
             </div>
         </div>
 
+
         <div id="manageModal" class="modal-backdrop">
             <div class="modal-box">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
@@ -514,7 +543,7 @@ def view_full_relational_table(db: Session = Depends(get_db)):
         </div>
     """
 
-    js_script = """
+    js_script = r"""
         <script>
             let activePcbId = null;
             let activeSerialNumber = '';

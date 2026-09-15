@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { getPCB, addDiagnosis, addRepair, addTest, uploadPCBImage } from "../api/pcbs";
+import { apiFetch } from "../api/apiFetch";
 
 export default function PCBDetail() {
   const { id } = useParams();
@@ -49,7 +50,7 @@ export default function PCBDetail() {
     if (generatingReport) return;
     setGeneratingReport(true);
     try {
-      const response = await fetch(`/pcbs/${id}/reports/generate`, {
+      const response = await apiFetch(`/pcbs/${id}/reports/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" }
       });
@@ -68,7 +69,7 @@ export default function PCBDetail() {
 
   const handleDownloadPDF = async () => {
     try {
-      const response = await fetch(`/pcbs/${id}/reports/download`);
+      const response = await apiFetch(`/pcbs/${id}/reports/download`);
       if (!response.ok) throw new Error("Download failed");
       
       let filename = "inspection_report.pdf";

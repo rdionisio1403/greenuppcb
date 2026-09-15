@@ -5,7 +5,7 @@ from sqlalchemy import text
 import traceback
 import os
 
-from app.dependencies import get_db
+from app.dependencies import get_db, get_current_user
 from app.models.pcb import PCB
 from app.models.report import Report
 from app.services.pdf_generator import generate_pcb_pdf
@@ -13,7 +13,7 @@ from app.services.pdf_generator import generate_pcb_pdf
 router = APIRouter(prefix="/pcbs/{pcb_id}/reports", tags=["Reports"])
 
 @router.post("/generate", status_code=201)
-def generate_report(pcb_id: int, db: Session = Depends(get_db)):
+def generate_report(pcb_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     pcb = db.query(PCB).filter(PCB.id == pcb_id).first()
     if not pcb:
         raise HTTPException(status_code=404, detail="PCB not found")
@@ -85,7 +85,7 @@ def generate_report(pcb_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("", status_code=200)
-def list_reports(pcb_id: int, db: Session = Depends(get_db)):
+def list_reports(pcb_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     pcb = db.query(PCB).filter(PCB.id == pcb_id).first()
     if not pcb:
         raise HTTPException(status_code=404, detail="PCB not found")
@@ -103,7 +103,7 @@ def list_reports(pcb_id: int, db: Session = Depends(get_db)):
         }
     }
 )
-def download_latest_report(pcb_id: int, db: Session = Depends(get_db)):
+def download_latest_report(pcb_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     """Stream and download the latest generated PDF service report for the PCB."""
     report = db.query(Report).filter(Report.pcb_id == pcb_id).order_by(Report.id.desc()).first()
     if not report:

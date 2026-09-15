@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import date
 
-from app.dependencies import get_db
+from app.dependencies import get_db, get_current_user
 from app.models.pcb import PCB
 from app.models.repair import Repair
 from app.models.test import Test
@@ -11,7 +11,7 @@ from app.models.test import Test
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
 @router.get("/summary")
-def get_dashboard_summary(db: Session = Depends(get_db)):
+def get_dashboard_summary(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     # 1. Total PCBs
     total_pcbs = db.query(func.count(PCB.id)).scalar() or 0
 
