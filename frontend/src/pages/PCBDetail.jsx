@@ -4,6 +4,7 @@ import { getPCB, addDiagnosis, addRepair, addTest, uploadPCBImage } from "../api
 import { apiFetch } from "../api/apiFetch";
 
 export default function PCBDetail() {
+
   const { id } = useParams();
   const navigate = useNavigate();
 
@@ -228,6 +229,7 @@ export default function PCBDetail() {
           ← Back to Registry
         </Link>
         <div style={{ display: "flex", gap: "10px" }}>
+
           <button
             onClick={handleGenerateReport}
             disabled={generatingReport}
@@ -248,7 +250,8 @@ export default function PCBDetail() {
           >
             <span>{generatingReport ? "⏳" : "⚡"}</span> {generatingReport ? "Generating..." : "Generate Report"}
           </button>
-          <button 
+
+          <button
             onClick={handleDownloadPDF}
             style={{
               display: "inline-flex",
@@ -725,8 +728,6 @@ export default function PCBDetail() {
             })}
           </div>
         )}
-      </div>
-
-    </div>
+      </div>\n    </div>
   );
 }

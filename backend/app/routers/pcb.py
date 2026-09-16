@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 
 from app.dependencies import get_db, get_current_user
 from app.models.pcb import PCB
+from app.models.diagnosis import Diagnosis
+from app.models.user import User
 from app.models.customer import Customer
 from app.schemas.pcb import PCBCreate, PCBRead, PCBDetailRead, PCBUpdate, PCBStatus, PaginatedPCBRead
 
@@ -134,6 +136,39 @@ def list_pcbs(
         "page": page,
         "limit": limit,
         "total_pages": total_pages
+    }
+
+
+@router.get("/{id}/users")
+def get_pcb_users(
+    id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    pcb = db.query(PCB).filter(PCB.id == id).first()
+    if not pcb:
+        raise HTTPException(status_code=404, detail="PCB not found")
+
+    users = (
+        db.query(User)
+        .join(Diagnosis, Diagnosis.user_id == User.id)
+        .filter(Diagnosis.pcb_id == id)
+        .distinct()
+        .order_by(User.id.asc())
+        .all()
+    )
+
+    return {
+        "total_users": len(users),
+        "users": [
+            {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "role": user.role,
+            }
+            for user in users
+        ],
     }
 
 

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_db, get_current_user
@@ -45,7 +45,7 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=Token)
-def login(user: UserLogin, db: Session = Depends(get_db)):
+def login(user: UserLogin, response: Response, db: Session = Depends(get_db)):
     db_user = (
         db.query(User)
         .filter(User.username == user.username)
@@ -69,6 +69,15 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
         }
     )
 
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        max_age=60 * 60,
+    )
+
     return {
         "access_token": access_token,
         "token_type": "bearer",
@@ -78,3 +87,27 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
 @router.get("/me", response_model=UserResponse)
 def get_me(current_user: User = Depends(get_current_user)):
     return current_user
+
+@router.get("/users-summary")
+def get_users_summary(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    users = (
+        db.query(User)
+        .order_by(User.id.asc())
+        .all()
+    )
+
+    return {
+        "total_users": len(users),
+        "users": [
+            {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "role": user.role,
+            }
+            for user in users
+        ],
+    }

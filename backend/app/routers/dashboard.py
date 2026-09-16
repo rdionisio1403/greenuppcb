@@ -7,6 +7,7 @@ from app.dependencies import get_db, get_current_user
 from app.models.pcb import PCB
 from app.models.repair import Repair
 from app.models.test import Test
+from app.models.user import User
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
@@ -39,7 +40,10 @@ def get_dashboard_summary(db: Session = Depends(get_db), current_user=Depends(ge
         or 0
     )
 
-    # 4. Completed repairs and tests
+    # 4. Total registered users
+    total_users = db.query(func.count(User.id)).scalar() or 0
+
+    # 5. Completed repairs and tests
     repairs_completed = db.query(func.count(Repair.id)).scalar() or 0
     tests_completed = db.query(func.count(Test.id)).scalar() or 0
 
@@ -74,6 +78,7 @@ def get_dashboard_summary(db: Session = Depends(get_db), current_user=Depends(ge
         "testing": status_counts.get("testing", 0),
         "completed": status_counts.get("completed", status_counts.get("closed", 0)),
         "archived": archived_count,
+        "total_users": total_users,
         "pcbs_this_month": pcbs_this_month,
         "repairs_completed": repairs_completed,
         "tests_completed": tests_completed,

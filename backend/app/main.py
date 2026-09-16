@@ -14,14 +14,14 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(
     title="GreenUpPCB LIS",
     description="""
-### 📊 [CLICK HERE TO VIEW FULL RELATIONAL DATABASE TABLE (LIVE SQL JOIN)](http://localhost:8000/view-table)
+### 📊 [CLICK HERE TO VIEW FULL RELATIONAL DATABASE TABLE (LIVE SQL JOIN)](/view-table)
 
 Laboratory Information System for PCB Intake, Diagnosis, Repair & Testing
     """,
     version="1.0.0",
     external_docs={
         "description": "👉 Open Relational Table View",
-        "url": "http://localhost:8000/view-table"
+        "url": "/view-table"
     }
 )
 
@@ -552,6 +552,13 @@ def view_full_relational_table(db: Session = Depends(get_db)):
             let activeCustomerName = '';
             let currentPcbTests = [];
 
+            function authHeaders(extra = {}) {
+                const token = localStorage.getItem('access_token');
+                return token
+                    ? { ...extra, 'Authorization': 'Bearer ' + token }
+                    : extra;
+            }
+
             async function openManageModal(pcbId, serialNumber, currentStatus, customerName, equipment, customerId) {
                 activePcbId = pcbId;
                 activeSerialNumber = serialNumber;
@@ -576,7 +583,7 @@ def view_full_relational_table(db: Session = Depends(get_db)):
                 container.innerHTML = '<div style="color:#64748b; font-size:12px;">Loading test history...</div>';
 
                 try {
-                    const response = await fetch('/pcbs/' + pcbId + '/tests');
+                    const response = await fetch('/pcbs/' + pcbId + '/tests', { headers: authHeaders() });
                     if (!response.ok) throw new Error('Failed to load tests');
                     currentPcbTests = await response.json();
 
@@ -656,7 +663,7 @@ def view_full_relational_table(db: Session = Depends(get_db)):
 
                     const res = await fetch('/pcbs', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: authHeaders({ 'Content-Type': 'application/json' }),
                         body: JSON.stringify(payload)
                     });
 
@@ -694,7 +701,7 @@ def view_full_relational_table(db: Session = Depends(get_db)):
                 try {
                     const response = await fetch('/pcbs/' + activePcbId + '/tests', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: authHeaders({ 'Content-Type': 'application/json' }),
                         body: JSON.stringify({
                             test_type: testType,
                             tester: tester,
@@ -722,7 +729,7 @@ def view_full_relational_table(db: Session = Depends(get_db)):
                 try {
                     await fetch('/pcbs/' + activePcbId, {
                         method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: authHeaders({ 'Content-Type': 'application/json' }),
                         body: JSON.stringify({ status: newStatus })
                     });
 
@@ -737,7 +744,7 @@ def view_full_relational_table(db: Session = Depends(get_db)):
                             if (resElem && notesElem) {
                                 await fetch('/pcbs/' + activePcbId + '/tests/' + test.id, {
                                     method: 'PATCH',
-                                    headers: { 'Content-Type': 'application/json' },
+                                    headers: authHeaders({ 'Content-Type': 'application/json' }),
                                     body: JSON.stringify({
                                         result: resElem.value,
                                         notes: notesElem.value
