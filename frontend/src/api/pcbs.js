@@ -34,10 +34,10 @@ export async function createPCB(data) {
 }
 
 export async function addDiagnosis(pcbId, data) {
-  const res = await apiFetch("/diagnoses", {
+  const res = await apiFetch(`/pcbs/${pcbId}/diagnoses`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...data, pcb_id: pcbId }),
+    body: JSON.stringify(data),
   });
   if (!res.ok) {
     throw new Error(`Failed to add diagnosis: ${res.statusText}`);
@@ -46,10 +46,10 @@ export async function addDiagnosis(pcbId, data) {
 }
 
 export async function addRepair(pcbId, data) {
-  const res = await apiFetch("/repairs", {
+  const res = await apiFetch(`/pcbs/${pcbId}/repairs`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...data, pcb_id: pcbId }),
+    body: JSON.stringify(data),
   });
   if (!res.ok) {
     throw new Error(`Failed to add repair: ${res.statusText}`);
@@ -58,10 +58,10 @@ export async function addRepair(pcbId, data) {
 }
 
 export async function addTest(pcbId, data) {
-  const res = await apiFetch("/tests", {
+  const res = await apiFetch(`/pcbs/${pcbId}/tests`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ ...data, pcb_id: pcbId }),
+    body: JSON.stringify(data),
   });
   if (!res.ok) {
     throw new Error(`Failed to add test: ${res.statusText}`);
@@ -70,7 +70,7 @@ export async function addTest(pcbId, data) {
 }
 
 export async function uploadPCBImage(pcbId, formData) {
-  const res = await apiFetch(`/images/upload/${pcbId}`, {
+  const res = await apiFetch(`/pcbs/${pcbId}/images`, {
     method: "POST",
     body: formData,
   });

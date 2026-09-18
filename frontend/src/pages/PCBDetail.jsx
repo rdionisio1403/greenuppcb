@@ -38,7 +38,7 @@ export default function PCBDetail() {
       })
       .catch((err) => {
         console.error(err);
-        setError("Failed to load PCB details: " + (err.message || ""));
+        setError(err.message || "Record not found.");
         setLoading(false);
       });
   };
@@ -144,9 +144,22 @@ export default function PCBDetail() {
       alert("Please select an image file first.");
       return;
     }
+
     setUploading(true);
+
     try {
-      await uploadPCBImage(id, uploadCategory, selectedFile, imageTechnician || "Technician", selectedTestId || null);
+      const formData = new FormData();
+      formData.append("category", uploadCategory);
+      formData.append("technician", imageTechnician || "Technician");
+
+      if (selectedTestId) {
+        formData.append("test_id", selectedTestId);
+      }
+
+      formData.append("file", selectedFile);
+
+      await uploadPCBImage(id, formData);
+
       setSelectedFile(null);
       setImageTechnician("");
       setSelectedTestId("");
@@ -166,7 +179,7 @@ export default function PCBDetail() {
   if (error || !pcb) {
     return (
       <div style={{ maxWidth: "1200px", margin: "40px auto", background: "#450a0a", border: "1px solid #7f1d1d", color: "#fecaca", padding: "16px", borderRadius: "8px", textAlign: "center" }}>
-        Failed to load PCB details: {error || "Record not found."}
+        {error || "Record not found."}
       </div>
     );
   }
@@ -728,6 +741,7 @@ export default function PCBDetail() {
             })}
           </div>
         )}
-      </div>\n    </div>
+      </div>
+    </div>
   );
 }

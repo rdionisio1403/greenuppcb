@@ -22,6 +22,7 @@ class PCBStatus(str, Enum):
 class PCBBase(BaseModel):
     internal_reference: str
     customer_id: Optional[int] = None
+    customer_name: Optional[str] = None
     equipment: str
     manufacturer: Optional[str] = None
     pcb_model: Optional[str] = None

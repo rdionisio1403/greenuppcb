@@ -20,44 +20,85 @@ def generate_report(pcb_id: int, db: Session = Depends(get_db), current_user=Dep
 
     try:
         query = text("""
-            SELECT 
-                p.id, 
-                p.equipment, 
-                p.manufacturer, 
-                p.pcb_model, 
-                p.serial_number, 
+            SELECT
+                p.id,
+                p.internal_reference,
+                p.customer_name,
+                p.equipment,
+                p.manufacturer,
+                p.pcb_model,
+                p.serial_number,
+                p.date_received,
+                p.failure_description,
                 p.status,
-                d.findings AS fault_found, 
-                d.notes AS recommended_action,
-                r.action AS actions_taken, 
-                r.components_rep AS components_replaced,
-                t.notes AS test_notes, 
+                d.findings AS findings,
+                d.notes AS diag_notes,
+                r.action AS action,
+                r.components_rep AS components_rep,
+                t.notes AS test_notes,
                 t.result AS test_result
             FROM pcbs p
             LEFT JOIN diagnoses d ON p.id = d.pcb_id
-            LEFT JOIN repairs r   ON p.id = r.pcb_id
-            LEFT JOIN tests t     ON p.id = t.pcb_id
+            LEFT JOIN repairs r ON p.id = r.pcb_id
+            LEFT JOIN tests t ON p.id = t.pcb_id
             WHERE p.id = :pcb_id
             ORDER BY d.id DESC, r.id DESC, t.id DESC
             LIMIT 1;
         """)
+
         row = db.execute(query, {"pcb_id": pcb_id}).mappings().first()
-        pcb_dict = dict(row) if row else {"id": pcb_id}
+
+        pcb_dict = dict(row) if row else {
+            "id": pcb.id,
+            "internal_reference": pcb.internal_reference,
+            "customer_name": pcb.customer_name,
+            "equipment": pcb.equipment,
+            "manufacturer": pcb.manufacturer,
+            "pcb_model": pcb.pcb_model,
+            "serial_number": pcb.serial_number,
+            "date_received": pcb.date_received,
+            "failure_description": pcb.failure_description,
+            "status": pcb.status,
+            "findings": None,
+            "diag_notes": None,
+            "action": None,
+            "components_rep": None,
+            "test_notes": None,
+            "test_result": None,
+        }
 
         img_records = db.execute(
             text("""
-                SELECT DISTINCT ON (category) category, filename_path, id
-                FROM images 
-                WHERE pcb_id = :pcb_id 
-                ORDER BY category, id DESC;
+                SELECT
+                    category,
+                    filename_path,
+                    id
+                FROM images
+                WHERE pcb_id = :pcb_id
+                ORDER BY id;
             """),
             {"pcb_id": pcb_id}
         ).fetchall()
 
-        canonical_order = {"before": 1, "defect": 2, "during": 3, "after": 4}
+        canonical_order = {
+            "before": 1,
+            "defect": 2,
+            "during": 3,
+            "after": 4,
+        }
+
         sorted_images = sorted(
-            [{"category": r.category, "path": r.filename_path} for r in img_records],
-            key=lambda x: canonical_order.get(x["category"].lower(), 99)
+            [
+                {
+                    "category": r.category,
+                    "path": r.filename_path
+                }
+                for r in img_records
+            ],
+            key=lambda x: canonical_order.get(
+                str(x["category"]).lower(),
+                99
+            )
         )
 
         pdf_rel_url = generate_pcb_pdf(pcb_dict, sorted_images)

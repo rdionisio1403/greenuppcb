@@ -1,8 +1,14 @@
 import React from "react";
-import { Link, Outlet, useLocation } from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 
 export default function Layout() {
   const location = useLocation();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    localStorage.removeItem("access_token");
+    navigate("/login", { replace: true });
+  };
 
   const isDashboard = location.pathname === "/dashboard";
   const isRegistry = location.pathname === "/" || location.pathname.startsWith("/pcbs");
@@ -79,6 +85,23 @@ export default function Layout() {
           >
             + Register New PCB
           </Link>
+          <button
+            type="button"
+            onClick={handleLogout}
+            style={{
+              padding: "8px 14px",
+              background: "transparent",
+              color: "#94a3b8",
+              border: "1px solid #475569",
+              borderRadius: "6px",
+              fontWeight: "500",
+              fontSize: "0.95rem",
+              cursor: "pointer",
+              marginLeft: "4px"
+            }}
+          >
+            Logout
+          </button>
         </nav>
       </header>
       <main>
