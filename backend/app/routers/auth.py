@@ -1,16 +1,24 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from datetime import datetime, timedelta, timezone
+import secrets
+
+from fastapi import APIRouter, Depends, HTTPException, Response, Request, status
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_db, get_current_user
 from app.models.user import User
-from app.schemas.user import UserCreate, UserLogin, UserResponse, Token
-from app.security import hash_password, verify_password, create_access_token
+from app.models.session import Session as UserSession
+from app.schemas.user import UserCreate, UserLogin, UserResponse
+from app.security import hash_password, verify_password
 
 
 router = APIRouter(
     prefix="/auth",
     tags=["Authentication"],
 )
+
+
+SESSION_COOKIE_NAME = "session_id"
+SESSION_DURATION = timedelta(hours=1)
 
 
 @router.post("/register", response_model=UserResponse)
@@ -44,7 +52,7 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
     return new_user
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login")
 def login(user: UserLogin, response: Response, db: Session = Depends(get_db)):
     db_user = (
         db.query(User)
@@ -61,32 +69,59 @@ def login(user: UserLogin, response: Response, db: Session = Depends(get_db)):
             detail="Incorrect username or password",
         )
 
-    access_token = create_access_token(
-        data={
-            "sub": str(db_user.id),
-            "username": db_user.username,
-            "role": db_user.role,
-        }
+    session_id = secrets.token_urlsafe(32)
+    now = datetime.now(timezone.utc)
+
+    user_session = UserSession(
+        session_id=session_id,
+        user_id=db_user.id,
+        created_at=now,
+        expires_at=now + SESSION_DURATION,
+        last_activity=now,
     )
 
+    db.add(user_session)
+    db.commit()
+
     response.set_cookie(
-        key="access_token",
-        value=access_token,
+        key=SESSION_COOKIE_NAME,
+        value=session_id,
         httponly=True,
         secure=False,
         samesite="lax",
-        max_age=60 * 60,
+        max_age=int(SESSION_DURATION.total_seconds()),
     )
 
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-    }
+    return {"message": "Login successful"}
+
+
+@router.post("/logout")
+def logout(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    session_id = request.cookies.get(SESSION_COOKIE_NAME)
+
+    if session_id:
+        db.query(UserSession).filter(
+            UserSession.session_id == session_id
+        ).delete(synchronize_session=False)
+        db.commit()
+
+    response.delete_cookie(
+        key=SESSION_COOKIE_NAME,
+        httponly=True,
+        samesite="lax",
+    )
+
+    return {"message": "Logout successful"}
 
 
 @router.get("/me", response_model=UserResponse)
 def get_me(current_user: User = Depends(get_current_user)):
     return current_user
+
 
 @router.get("/users-summary")
 def get_users_summary(

@@ -18,6 +18,7 @@ export default function Login() {
     try {
       const response = await fetch("/auth/login", {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
         },
@@ -32,8 +33,6 @@ export default function Login() {
       if (!response.ok) {
         throw new Error(data.detail || "Login failed");
       }
-
-      localStorage.setItem("access_token", data.access_token);
 
       navigate("/dashboard");
     } catch (err) {

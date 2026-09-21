@@ -5,9 +5,15 @@ export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const handleLogout = () => {
-    localStorage.removeItem("access_token");
-    navigate("/login", { replace: true });
+  const handleLogout = async () => {
+    try {
+      await fetch("/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+    } finally {
+      navigate("/login", { replace: true });
+    }
   };
 
   const isDashboard = location.pathname === "/dashboard";

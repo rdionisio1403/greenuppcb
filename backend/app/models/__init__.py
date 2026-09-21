@@ -6,3 +6,4 @@ from app.models.test import Test
 from app.models.image import Image
 from app.models.report import Report
 from app.models.user import User
+from app.models.session import Session

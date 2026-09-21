@@ -1,14 +1,16 @@
-from fastapi import Cookie, Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from jose import JWTError, jwt
+from datetime import datetime, timedelta, timezone
+
+from fastapi import Request, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.models.user import User
-from app.security import SECRET_KEY, ALGORITHM
+from app.models.session import Session as UserSession
 
 
-security = HTTPBearer(auto_error=False)
+SESSION_COOKIE_NAME = "session_id"
+SESSION_DURATION = timedelta(hours=1)
+SESSION_IDLE_TIMEOUT = timedelta(minutes=30)
 
 
 def get_db():
@@ -20,45 +22,58 @@ def get_db():
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    access_token: str | None = Cookie(default=None),
+    request: Request,
     db: Session = Depends(get_db),
 ):
-    token = credentials.credentials if credentials else access_token
+    session_id = request.cookies.get(SESSION_COOKIE_NAME)
 
-    if not token:
+    if not session_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Not authenticated",
         )
 
-    try:
-        payload = jwt.decode(
-            token,
-            SECRET_KEY,
-            algorithms=[ALGORITHM],
-        )
+    user_session = (
+        db.query(UserSession)
+        .filter(UserSession.session_id == session_id)
+        .first()
+    )
 
-        user_id = payload.get("sub")
-
-        if user_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication token",
-            )
-
-    except JWTError:
+    if user_session is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication token",
+            detail="Invalid session",
         )
 
-    user = db.query(User).filter(User.id == int(user_id)).first()
+    now = datetime.now(timezone.utc)
+
+    if user_session.expires_at <= now:
+        db.delete(user_session)
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session expired",
+        )
+
+    if user_session.last_activity + SESSION_IDLE_TIMEOUT <= now:
+        db.delete(user_session)
+        db.commit()
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session expired due to inactivity",
+        )
+
+    user = db.query(User).filter(User.id == user_session.user_id).first()
 
     if user is None:
+        db.delete(user_session)
+        db.commit()
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
         )
+
+    user_session.last_activity = now
+    db.commit()
 
     return user
