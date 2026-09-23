@@ -77,3 +77,43 @@ def get_current_user(
     db.commit()
 
     return user
+
+
+def require_csrf(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    session_id = request.cookies.get(SESSION_COOKIE_NAME)
+    csrf_token = request.headers.get("X-CSRF-Token")
+
+    if not session_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+        )
+
+    if not csrf_token:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="CSRF validation failed",
+        )
+
+    user_session = (
+        db.query(UserSession)
+        .filter(UserSession.session_id == session_id)
+        .first()
+    )
+
+    if user_session is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid session",
+        )
+
+    if not user_session.csrf_token or csrf_token != user_session.csrf_token:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="CSRF validation failed",
+        )
+
+    return user_session

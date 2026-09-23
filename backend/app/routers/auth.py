@@ -4,7 +4,7 @@ import secrets
 from fastapi import APIRouter, Depends, HTTPException, Response, Request, status
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_db, get_current_user
+from app.dependencies import get_db, get_current_user, require_csrf
 from app.models.user import User
 from app.models.session import Session as UserSession
 from app.schemas.user import UserCreate, UserLogin, UserResponse
@@ -70,10 +70,12 @@ def login(user: UserLogin, response: Response, db: Session = Depends(get_db)):
         )
 
     session_id = secrets.token_urlsafe(32)
+    csrf_token = secrets.token_urlsafe(32)
     now = datetime.now(timezone.utc)
 
     user_session = UserSession(
         session_id=session_id,
+        csrf_token=csrf_token,
         user_id=db_user.id,
         created_at=now,
         expires_at=now + SESSION_DURATION,
@@ -92,7 +94,7 @@ def login(user: UserLogin, response: Response, db: Session = Depends(get_db)):
         max_age=int(SESSION_DURATION.total_seconds()),
     )
 
-    return {"message": "Login successful"}
+    return {"message": "Login successful", "csrf_token": csrf_token}
 
 
 @router.post("/logout")
@@ -100,6 +102,7 @@ def logout(
     request: Request,
     response: Response,
     db: Session = Depends(get_db),
+    csrf_session: UserSession = Depends(require_csrf),
 ):
     session_id = request.cookies.get(SESSION_COOKIE_NAME)
 

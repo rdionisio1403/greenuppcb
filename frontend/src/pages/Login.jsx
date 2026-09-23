@@ -34,6 +34,7 @@ export default function Login() {
         throw new Error(data.detail || "Login failed");
       }
 
+      sessionStorage.setItem("csrf_token", data.csrf_token);
       navigate("/dashboard");
     } catch (err) {
       setError(err.message || "Login failed");

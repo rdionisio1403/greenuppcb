@@ -8,6 +8,7 @@ class Session(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     session_id = Column(String(128), unique=True, nullable=False, index=True)
+    csrf_token = Column(String(128), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     expires_at = Column(DateTime(timezone=True), nullable=False)
