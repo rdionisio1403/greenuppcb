@@ -3,7 +3,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_db, get_current_user
+from app.dependencies import get_db, get_current_user, require_csrf
 from app.models.pcb import PCB
 from app.models.diagnosis import Diagnosis
 from app.schemas.diagnosis import DiagnosisCreate, DiagnosisRead
@@ -11,7 +11,13 @@ from app.schemas.diagnosis import DiagnosisCreate, DiagnosisRead
 router = APIRouter(prefix="/pcbs/{pcb_id}/diagnoses", tags=["Diagnoses"])
 
 @router.post("", response_model=DiagnosisRead, status_code=status.HTTP_201_CREATED)
-def create_diagnosis(pcb_id: int, data: DiagnosisCreate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+def create_diagnosis(
+    pcb_id: int,
+    data: DiagnosisCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+    csrf_session=Depends(require_csrf),
+):
     pcb = db.query(PCB).filter(PCB.id == pcb_id).first()
     if not pcb:
         raise HTTPException(status_code=404, detail="PCB not found")

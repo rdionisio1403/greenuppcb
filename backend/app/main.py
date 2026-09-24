@@ -4,10 +4,13 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 import os
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 from app.database import engine, Base
 from app.dependencies import get_db, get_current_user
-from app.routers import dashboard, customer, pcb, diagnosis, repair, test, image, report, auth
+from app.routers import dashboard, customer, pcb, diagnosis, repair, test, image, report, auth, user
 
 Base.metadata.create_all(bind=engine)
 
@@ -42,6 +45,7 @@ app.include_router(image.router)
 app.include_router(report.router)
 app.include_router(dashboard.router)
 app.include_router(auth.router)
+app.include_router(user.router)
 
 
 @app.get("/view-table", response_class=HTMLResponse, tags=["General"])

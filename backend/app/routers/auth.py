@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 import secrets
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Response, Request, status
 from sqlalchemy.orm import Session
@@ -9,6 +10,14 @@ from app.models.user import User
 from app.models.session import Session as UserSession
 from app.schemas.user import UserCreate, UserLogin, UserResponse
 from app.security import hash_password, verify_password
+from app.rate_limiter import (
+    is_rate_limited,
+    record_failed_attempt,
+    reset_attempts,
+)
+
+
+logger = logging.getLogger(__name__)
 
 
 router = APIRouter(
@@ -53,7 +62,22 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login")
-def login(user: UserLogin, response: Response, db: Session = Depends(get_db)):
+def login(
+    user: UserLogin,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    client_ip = request.client.host if request.client else "unknown"
+    ip_key = f"ip:{client_ip}"
+    username_key = f"user:{user.username}"
+
+    if is_rate_limited(ip_key) or is_rate_limited(username_key):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Too many login attempts. Please try again later.",
+        )
+
     db_user = (
         db.query(User)
         .filter(User.username == user.username)
@@ -64,10 +88,22 @@ def login(user: UserLogin, response: Response, db: Session = Depends(get_db)):
         user.password,
         db_user.password_hash
     ):
+        record_failed_attempt(ip_key)
+        record_failed_attempt(username_key)
+
+        logger.warning(
+            "LOGIN_FAILED username=%s ip=%s",
+            user.username,
+            client_ip,
+        )
+
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
         )
+
+    reset_attempts(ip_key)
+    reset_attempts(username_key)
 
     session_id = secrets.token_urlsafe(32)
     csrf_token = secrets.token_urlsafe(32)
@@ -84,6 +120,12 @@ def login(user: UserLogin, response: Response, db: Session = Depends(get_db)):
 
     db.add(user_session)
     db.commit()
+
+    logger.info(
+        "LOGIN_SUCCESS username=%s ip=%s",
+        db_user.username,
+        client_ip,
+    )
 
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
@@ -111,6 +153,11 @@ def logout(
             UserSession.session_id == session_id
         ).delete(synchronize_session=False)
         db.commit()
+
+        logger.info(
+            "LOGOUT ip=%s",
+            request.client.host if request.client else "unknown",
+        )
 
     response.delete_cookie(
         key=SESSION_COOKIE_NAME,

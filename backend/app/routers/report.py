@@ -5,7 +5,7 @@ from sqlalchemy import text
 import traceback
 import os
 
-from app.dependencies import get_db, get_current_user
+from app.dependencies import get_db, get_current_user, require_csrf
 from app.models.pcb import PCB
 from app.models.report import Report
 from app.services.pdf_generator import generate_pcb_pdf
@@ -13,7 +13,12 @@ from app.services.pdf_generator import generate_pcb_pdf
 router = APIRouter(prefix="/pcbs/{pcb_id}/reports", tags=["Reports"])
 
 @router.post("/generate", status_code=201)
-def generate_report(pcb_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+def generate_report(
+    pcb_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+    csrf_session=Depends(require_csrf),
+):
     pcb = db.query(PCB).filter(PCB.id == pcb_id).first()
     if not pcb:
         raise HTTPException(status_code=404, detail="PCB not found")

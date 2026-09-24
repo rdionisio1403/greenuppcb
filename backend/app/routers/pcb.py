@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import or_, cast, String, func
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_db, get_current_user
+from app.dependencies import get_db, get_current_user, require_csrf
 from app.models.pcb import PCB
 from app.models.diagnosis import Diagnosis
 from app.models.user import User
@@ -60,7 +60,12 @@ def normalize_pcb(pcb):
 
 
 @router.post("", response_model=PCBRead, status_code=201)
-def create_pcb(data: PCBCreate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+def create_pcb(
+    data: PCBCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+    csrf_session=Depends(require_csrf),
+):
     existing = db.query(PCB).filter(PCB.internal_reference == data.internal_reference).first()
     if existing:
         raise HTTPException(status_code=409, detail="Internal reference already exists")
@@ -181,7 +186,13 @@ def get_pcb(id: int, db: Session = Depends(get_db), current_user=Depends(get_cur
 
 
 @router.patch("/{id}", response_model=PCBRead)
-def update_pcb(id: int, data: PCBUpdate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+def update_pcb(
+    id: int,
+    data: PCBUpdate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+    csrf_session=Depends(require_csrf),
+):
     pcb = db.query(PCB).filter(PCB.id == id).first()
     if not pcb:
         raise HTTPException(status_code=404, detail="PCB not found")

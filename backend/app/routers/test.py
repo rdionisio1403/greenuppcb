@@ -3,7 +3,7 @@ from typing import List, Generator
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, require_csrf
 from app.models.test import Test
 from app.models.pcb import PCB
 from app.schemas.test import TestCreate, TestUpdate, TestRead
@@ -21,7 +21,13 @@ def get_db() -> Generator[Session, None, None]:
 
 
 @router.post("", response_model=TestRead, status_code=status.HTTP_201_CREATED)
-def create_test(pcb_id: int, data: TestCreate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+def create_test(
+    pcb_id: int,
+    data: TestCreate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+    csrf_session=Depends(require_csrf),
+):
     """Create a new test record for a specific PCB."""
     pcb = db.query(PCB).filter(PCB.id == pcb_id).first()
     if not pcb:
@@ -50,7 +56,14 @@ def list_tests(pcb_id: int, db: Session = Depends(get_db), current_user=Depends(
 
 
 @router.patch("/{test_id}", response_model=TestRead)
-def update_test(pcb_id: int, test_id: int, data: TestUpdate, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+def update_test(
+    pcb_id: int,
+    test_id: int,
+    data: TestUpdate,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+    csrf_session=Depends(require_csrf),
+):
     """Update an existing test record, enforcing the 1-year immutability business rule."""
     test = db.query(Test).filter(Test.id == test_id, Test.pcb_id == pcb_id).first()
     if not test:
