@@ -10,6 +10,7 @@ from app.models.user import User
 from app.models.session import Session as UserSession
 from app.schemas.user import UserCreate, UserLogin, UserResponse
 from app.security import hash_password, verify_password
+from app.audit import log_audit
 from app.rate_limiter import (
     is_rate_limited,
     record_failed_attempt,
@@ -84,7 +85,7 @@ def login(
         .first()
     )
 
-    if not db_user or not verify_password(
+    if not db_user or not db_user.is_active or not verify_password(
         user.password,
         db_user.password_hash
     ):
@@ -95,6 +96,14 @@ def login(
             "LOGIN_FAILED username=%s ip=%s",
             user.username,
             client_ip,
+        )
+
+        log_audit(
+            db=db,
+            event_type="LOGIN_FAILED",
+            request=request,
+            user_id=db_user.id if db_user else None,
+            details=f"username={user.username}",
         )
 
         raise HTTPException(
@@ -127,6 +136,13 @@ def login(
         client_ip,
     )
 
+    log_audit(
+        db=db,
+        event_type="LOGIN_SUCCESS",
+        request=request,
+        user_id=db_user.id,
+    )
+
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=session_id,
@@ -157,6 +173,13 @@ def logout(
         logger.info(
             "LOGOUT ip=%s",
             request.client.host if request.client else "unknown",
+        )
+
+        log_audit(
+            db=db,
+            event_type="LOGOUT",
+            request=request,
+            user_id=csrf_session.user_id,
         )
 
     response.delete_cookie(

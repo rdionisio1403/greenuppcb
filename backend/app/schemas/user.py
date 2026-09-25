@@ -1,3 +1,4 @@
+from datetime import datetime
 from pydantic import BaseModel, EmailStr, ConfigDict, Field, field_validator
 
 
@@ -36,6 +37,17 @@ class UserResponse(BaseModel):
     id: int
     username: str
     email: EmailStr
-    role: str
+    role: str 
+    is_active: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SessionResponse(BaseModel):
+    id: int
+    user_id: int
+    created_at: datetime
+    expires_at: datetime
+    last_activity: datetime
 
     model_config = ConfigDict(from_attributes=True)

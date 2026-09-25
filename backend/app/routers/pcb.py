@@ -1,10 +1,11 @@
 from typing import List, Optional
 from datetime import datetime, timezone, timedelta, date
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy import or_, cast, String, func
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_db, get_current_user, require_csrf
+from app.audit import log_audit
 from app.models.pcb import PCB
 from app.models.diagnosis import Diagnosis
 from app.models.user import User
@@ -61,6 +62,7 @@ def normalize_pcb(pcb):
 
 @router.post("", response_model=PCBRead, status_code=201)
 def create_pcb(
+    request: Request,
     data: PCBCreate,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
@@ -90,6 +92,15 @@ def create_pcb(
     db.add(pcb)
     db.commit()
     db.refresh(pcb)
+
+    log_audit(
+        db=db,
+        event_type="PCB_CREATED",
+        request=request,
+        user_id=current_user.id,
+        details=f"pcb_id={pcb.id};internal_reference={pcb.internal_reference}",
+    )
+
     return normalize_pcb(pcb)
 
 
@@ -214,4 +225,13 @@ def update_pcb(
 
     db.commit()
     db.refresh(pcb)
+
+    log_audit(
+        db=db,
+        event_type="PCB_CREATED",
+        request=request,
+        user_id=current_user.id,
+        details=f"pcb_id={pcb.id};internal_reference={pcb.internal_reference}",
+    )
+
     return normalize_pcb(pcb)

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -6,6 +6,7 @@ import traceback
 import os
 
 from app.dependencies import get_db, get_current_user, require_csrf
+from app.audit import log_audit
 from app.models.pcb import PCB
 from app.models.report import Report
 from app.services.pdf_generator import generate_pcb_pdf
@@ -14,6 +15,7 @@ router = APIRouter(prefix="/pcbs/{pcb_id}/reports", tags=["Reports"])
 
 @router.post("/generate", status_code=201)
 def generate_report(
+    request: Request,
     pcb_id: int,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
@@ -115,6 +117,14 @@ def generate_report(
         db.add(new_report)
         db.commit()
         db.refresh(new_report)
+
+        log_audit(
+            db=db,
+            event_type="PDF_CREATED",
+            request=request,
+            user_id=current_user.id,
+            details=f"report_id={new_report.id};pcb_id={pcb_id}",
+        )
 
         return {
             "message": "Service report successfully generated",

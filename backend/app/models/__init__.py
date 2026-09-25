@@ -7,3 +7,7 @@ from app.models.image import Image
 from app.models.report import Report
 from app.models.user import User
 from app.models.session import Session
+
+from app.models.password_reset import PasswordResetToken
+
+from app.models.audit_log import AuditLog

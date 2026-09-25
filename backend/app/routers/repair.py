@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from typing import List
 
 from app.dependencies import get_db, get_current_user, require_csrf
+from app.audit import log_audit
 from app.models.pcb import PCB
 from app.models.repair import Repair
 from app.schemas.repair import RepairCreate, RepairRead
@@ -11,6 +12,7 @@ router = APIRouter(prefix="/pcbs/{pcb_id}/repairs", tags=["Repairs"])
 
 @router.post("", response_model=RepairRead, status_code=201)
 def create_repair(
+    request: Request,
     pcb_id: int,
     data: RepairCreate,
     db: Session = Depends(get_db),
@@ -25,6 +27,15 @@ def create_repair(
     db.add(repair)
     db.commit()
     db.refresh(repair)
+
+    log_audit(
+        db=db,
+        event_type="REPAIR_CREATED",
+        request=request,
+        user_id=current_user.id,
+        details=f"repair_id={repair.id};pcb_id={pcb_id}",
+    )
+
     return repair
 
 @router.get("", response_model=List[RepairRead])

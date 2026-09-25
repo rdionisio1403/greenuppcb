@@ -1,9 +1,10 @@
 from datetime import date
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_db, get_current_user, require_csrf
+from app.audit import log_audit
 from app.models.pcb import PCB
 from app.models.diagnosis import Diagnosis
 from app.schemas.diagnosis import DiagnosisCreate, DiagnosisRead
@@ -12,6 +13,7 @@ router = APIRouter(prefix="/pcbs/{pcb_id}/diagnoses", tags=["Diagnoses"])
 
 @router.post("", response_model=DiagnosisRead, status_code=status.HTTP_201_CREATED)
 def create_diagnosis(
+    request: Request,
     pcb_id: int,
     data: DiagnosisCreate,
     db: Session = Depends(get_db),
@@ -38,6 +40,15 @@ def create_diagnosis(
 
     db.commit()
     db.refresh(diagnosis)
+
+    log_audit(
+        db=db,
+        event_type="DIAGNOSIS_CREATED",
+        request=request,
+        user_id=current_user.id,
+        details=f"diagnosis_id={diagnosis.id};pcb_id={pcb_id}",
+    )
+
     return diagnosis
 
 @router.get("", response_model=List[DiagnosisRead])

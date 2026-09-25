@@ -1,9 +1,10 @@
 from datetime import date
 from typing import List, Generator
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.dependencies import get_current_user, require_csrf
+from app.audit import log_audit
 from app.models.test import Test
 from app.models.pcb import PCB
 from app.schemas.test import TestCreate, TestUpdate, TestRead
@@ -22,6 +23,7 @@ def get_db() -> Generator[Session, None, None]:
 
 @router.post("", response_model=TestRead, status_code=status.HTTP_201_CREATED)
 def create_test(
+    request: Request,
     pcb_id: int,
     data: TestCreate,
     db: Session = Depends(get_db),
@@ -40,6 +42,15 @@ def create_test(
     db.add(test)
     db.commit()
     db.refresh(test)
+
+    log_audit(
+        db=db,
+        event_type="TEST_CREATED",
+        request=request,
+        user_id=current_user.id,
+        details=f"test_id={test.id};pcb_id={pcb_id}",
+    )
+
     return test
 
 
@@ -87,4 +98,13 @@ def update_test(
 
     db.commit()
     db.refresh(test)
+
+    log_audit(
+        db=db,
+        event_type="TEST_CREATED",
+        request=request,
+        user_id=current_user.id,
+        details=f"test_id={test.id};pcb_id={pcb_id}",
+    )
+
     return test

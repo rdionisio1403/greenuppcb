@@ -5,10 +5,11 @@ from enum import Enum
 from typing import Optional, List
 from PIL import Image as PILImage
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_db, get_current_user, require_csrf
+from app.audit import log_audit
 from app.models.pcb import PCB
 from app.models.image import Image
 from app.schemas.image import ImageRead
@@ -24,6 +25,7 @@ class ImageCategory(str, Enum):
 router = APIRouter(prefix="/pcbs/{pcb_id}/images", tags=["Images"])
 
 UPLOAD_DIR = "/opt/greenupcb/backend/uploads"
+MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10 MB
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
@@ -50,6 +52,7 @@ def process_and_save_image(file_bytes: bytes, filename_prefix: str) -> str:
 
 @router.post("", response_model=ImageRead, status_code=201)
 async def upload_pcb_image(
+    request: Request,
     pcb_id: int,
     category: ImageCategory = Form(..., description="Allowed: before, during, after, defect"),
     technician: str = Form("Technician", description="Technician who uploaded the image"),
@@ -85,8 +88,24 @@ async def upload_pcb_image(
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(status_code=400, detail="Only image files are allowed")
 
+    allowed_extensions = {".jpg", ".jpeg", ".png", ".webp"}
+    file_extension = Path(file.filename or "").suffix.lower()
+
+    if file_extension not in allowed_extensions:
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported image file extension. Allowed: .jpg, .jpeg, .png, .webp",
+        )
+
     try:
-        content = await file.read()
+        content = await file.read(MAX_IMAGE_SIZE + 1)
+
+        if len(content) > MAX_IMAGE_SIZE:
+            raise HTTPException(
+                status_code=413,
+                detail="Image file is too large. Maximum allowed size is 10 MB.",
+            )
+
         filename_prefix = f"pcb_{pcb_id}_{category.value}"
         file_url = process_and_save_image(content, filename_prefix)
     except Exception as e:
@@ -102,6 +121,15 @@ async def upload_pcb_image(
     db.add(new_image)
     db.commit()
     db.refresh(new_image)
+
+    log_audit(
+        db=db,
+        event_type="IMAGE_UPLOADED",
+        request=request,
+        user_id=current_user.id,
+        details=f"image_id={new_image.id};pcb_id={pcb_id};category={category.value}",
+    )
+
     return new_image
 
 

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models.user import User
 from app.models.session import Session as UserSession
+from app.audit import log_audit
 
 
 SESSION_COOKIE_NAME = "session_id"
@@ -48,6 +49,13 @@ def get_current_user(
     now = datetime.now(timezone.utc)
 
     if user_session.expires_at <= now:
+        log_audit(
+            db=db,
+            event_type="SESSION_EXPIRED",
+            request=request,
+            user_id=user_session.user_id,
+            details="absolute_session_timeout",
+        )
         db.delete(user_session)
         db.commit()
         raise HTTPException(
@@ -56,6 +64,13 @@ def get_current_user(
         )
 
     if user_session.last_activity + SESSION_IDLE_TIMEOUT <= now:
+        log_audit(
+            db=db,
+            event_type="SESSION_EXPIRED",
+            request=request,
+            user_id=user_session.user_id,
+            details="idle_timeout",
+        )
         db.delete(user_session)
         db.commit()
         raise HTTPException(
@@ -101,6 +116,12 @@ def require_csrf(
         )
 
     if not csrf_token:
+        log_audit(
+            db=db,
+            event_type="CSRF_BLOCKED",
+            request=request,
+            details="missing_csrf_token",
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="CSRF validation failed",
@@ -119,6 +140,13 @@ def require_csrf(
         )
 
     if not user_session.csrf_token or csrf_token != user_session.csrf_token:
+        log_audit(
+            db=db,
+            event_type="CSRF_BLOCKED",
+            request=request,
+            user_id=user_session.user_id,
+            details="invalid_csrf_token",
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="CSRF validation failed",
@@ -128,9 +156,18 @@ def require_csrf(
 
 
 def require_admin(
+    request: Request,
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     if current_user.role != "admin":
+        log_audit(
+            db=db,
+            event_type="AUTHORIZATION_DENIED",
+            request=request,
+            user_id=current_user.id,
+            details="admin_access_required",
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required",
