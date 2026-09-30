@@ -1,5 +1,6 @@
 import React from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { apiFetch } from "../api/apiFetch";
 
 export default function Layout() {
   const location = useLocation();
@@ -7,7 +8,7 @@ export default function Layout() {
 
   const handleLogout = async () => {
     try {
-      await fetch("/auth/logout", {
+      await apiFetch("/auth/logout", {
         method: "POST",
         credentials: "include",
       });

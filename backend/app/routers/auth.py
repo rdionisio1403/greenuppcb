@@ -165,6 +165,8 @@ def logout(
     session_id = request.cookies.get(SESSION_COOKIE_NAME)
 
     if session_id:
+        user_id = csrf_session.user_id
+
         db.query(UserSession).filter(
             UserSession.session_id == session_id
         ).delete(synchronize_session=False)
@@ -179,7 +181,7 @@ def logout(
             db=db,
             event_type="LOGOUT",
             request=request,
-            user_id=csrf_session.user_id,
+            user_id=user_id,
         )
 
     response.delete_cookie(
