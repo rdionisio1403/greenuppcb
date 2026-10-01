@@ -17,14 +17,14 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(
     title="GreenUpPCB LIS",
     description="""
-### 📊 [CLICK HERE TO VIEW FULL RELATIONAL DATABASE TABLE (LIVE SQL JOIN)](/view-table)
+### 📊 [CLICK HERE TO VIEW FULL RELATIONAL DATABASE TABLE (LIVE SQL JOIN)](http://greenuppcb.ipcb.pt/view-table)
 
 Laboratory Information System for PCB Intake, Diagnosis, Repair & Testing
     """,
     version="1.0.0",
     external_docs={
         "description": "👉 Open Relational Table View",
-        "url": "/view-table"
+        "url": "http://greenuppcb.ipcb.pt/view-table"
     }
 )
 
