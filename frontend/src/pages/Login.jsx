@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 export default function Login() {
   const navigate = useNavigate();
 
+  const [role, setRole] = useState("user");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -25,6 +26,7 @@ export default function Login() {
         body: JSON.stringify({
           username,
           password,
+          role,
         }),
       });
 
@@ -82,11 +84,61 @@ export default function Login() {
             style={{
               color: "#94a3b8",
               marginTop: "8px",
-              marginBottom: 0,
+              marginBottom: "20px",
             }}
           >
             Sign in to continue
           </p>
+
+          <div
+            style={{
+              display: "flex",
+              gap: "8px",
+              background: "#0f172a",
+              padding: "5px",
+              borderRadius: "8px",
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setRole("user");
+                setError("");
+              }}
+              style={{
+                flex: 1,
+                padding: "10px",
+                border: "none",
+                borderRadius: "6px",
+                background: role === "user" ? "#16a34a" : "transparent",
+                color: "#ffffff",
+                fontWeight: "600",
+                cursor: "pointer",
+              }}
+            >
+              User Login
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setRole("admin");
+                setError("");
+              }}
+              style={{
+                flex: 1,
+                padding: "10px",
+                border: "none",
+                borderRadius: "6px",
+                background: role === "admin" ? "#16a34a" : "transparent",
+                color: "#ffffff",
+                fontWeight: "600",
+                cursor: "pointer",
+              }}
+            >
+              Admin Login
+            </button>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit}>
@@ -182,7 +234,11 @@ export default function Login() {
               cursor: loading ? "not-allowed" : "pointer",
             }}
           >
-            {loading ? "Signing in..." : "Sign In"}
+            {loading
+              ? "Signing in..."
+              : role === "admin"
+                ? "Sign In as Admin"
+                : "Sign In"}
           </button>
         </form>
       </div>

@@ -8,6 +8,7 @@ from app.models.pcb import PCB
 from app.models.repair import Repair
 from app.models.test import Test
 from app.models.user import User
+from app.routers.pcb import compute_is_archived
 
 router = APIRouter(prefix="/dashboard", tags=["Dashboard"])
 
@@ -23,12 +24,9 @@ def get_dashboard_summary(db: Session = Depends(get_db), current_user=Depends(ge
         if status_val:
             status_counts[str(status_val).lower()] = count
 
-    # Count archived PCBs
-    archived_count = 0
-    if hasattr(PCB, "is_archived"):
-        archived_count = db.query(func.count(PCB.id)).filter(PCB.is_archived == True).scalar() or 0
-    elif "archived" in status_counts:
-        archived_count = status_counts.get("archived", 0)
+    # Count archived PCBs using the lifecycle archive rule
+    all_pcbs = db.query(PCB).all()
+    archived_count = sum(1 for pcb in all_pcbs if compute_is_archived(pcb))
 
     # 3. PCBs received this month
     today = date.today()

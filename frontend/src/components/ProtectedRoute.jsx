@@ -4,15 +4,21 @@ import { apiFetch } from "../api/apiFetch";
 
 export default function ProtectedRoute() {
   const [checking, setChecking] = useState(true);
-  const [authenticated, setAuthenticated] = useState(false);
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
     apiFetch("/auth/me")
-      .then((response) => {
-        setAuthenticated(response.ok);
+      .then(async (response) => {
+        if (!response.ok) {
+          setUser(null);
+          return;
+        }
+
+        const data = await response.json();
+        setUser(data);
       })
       .catch(() => {
-        setAuthenticated(false);
+        setUser(null);
       })
       .finally(() => {
         setChecking(false);
@@ -23,9 +29,9 @@ export default function ProtectedRoute() {
     return <div>Checking authentication...</div>;
   }
 
-  if (!authenticated) {
+  if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  return <Outlet />;
+  return <Outlet context={{ user }} />;
 }

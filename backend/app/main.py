@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends
+from fastapi.openapi.docs import get_swagger_ui_html, get_redoc_html
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
@@ -9,22 +10,25 @@ import logging
 logging.basicConfig(level=logging.INFO)
 
 from app.database import engine, Base
-from app.dependencies import get_db, get_current_user
+from app.dependencies import get_db, get_current_user, require_admin
 from app.routers import dashboard, customer, pcb, diagnosis, repair, test, image, report, auth, user
 
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
     title="GreenUpPCB LIS",
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
     description="""
-### 📊 [CLICK HERE TO VIEW FULL RELATIONAL DATABASE TABLE (LIVE SQL JOIN)](http://greenuppcb.ipcb.pt/view-table)
+### 📊 [CLICK HERE TO VIEW FULL RELATIONAL DATABASE TABLE (LIVE SQL JOIN)](/view-table)
 
 Laboratory Information System for PCB Intake, Diagnosis, Repair & Testing
     """,
     version="1.0.0",
     external_docs={
         "description": "👉 Open Relational Table View",
-        "url": "http://greenuppcb.ipcb.pt/view-table"
+        "url": "/view-table"
     }
 )
 
@@ -48,8 +52,29 @@ app.include_router(auth.router)
 app.include_router(user.router)
 
 
+@app.get("/docs", include_in_schema=False)
+def custom_swagger_docs(_admin=Depends(require_admin)):
+    return get_swagger_ui_html(
+        openapi_url="/openapi.json",
+        title="GreenUpPCB LIS - Swagger UI",
+    )
+
+
+@app.get("/redoc", include_in_schema=False)
+def custom_redoc_docs(_admin=Depends(require_admin)):
+    return get_redoc_html(
+        openapi_url="/openapi.json",
+        title="GreenUpPCB LIS - ReDoc",
+    )
+
+
+@app.get("/openapi.json", include_in_schema=False)
+def custom_openapi(_admin=Depends(require_admin)):
+    return app.openapi()
+
+
 @app.get("/view-table", response_class=HTMLResponse, tags=["General"])
-def view_full_relational_table(db: Session = Depends(get_db)):
+def view_full_relational_table(db: Session = Depends(get_db), _admin=Depends(require_admin)):
     query = text("""
         SELECT 
             p.id,

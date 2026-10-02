@@ -1,8 +1,15 @@
 import React from "react";
-import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate, useOutletContext } from "react-router-dom";
 import { apiFetch } from "../api/apiFetch";
 
+const backendDocsUrl =
+  window.location.hostname === "localhost" ||
+  window.location.hostname === "127.0.0.1"
+    ? "http://localhost:8000/docs"
+    : "/docs";
+
 export default function Layout() {
+  const { user } = useOutletContext();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -76,6 +83,26 @@ export default function Layout() {
           >
             PCB Registry
           </Link>
+          {user?.role === "admin" && (
+            <>
+              <Link
+                to="/users"
+                style={location.pathname === "/users" ? activeStyle : inactiveStyle}
+              >
+                👥 User Management
+              </Link>
+
+              <a
+                href={backendDocsUrl}
+                target="_blank"
+                rel="noreferrer"
+                style={inactiveStyle}
+              >
+                ⚙️ Backend / Swagger
+              </a>
+            </>
+          )}
+
           <Link
             to="/new"
             style={{
@@ -112,7 +139,7 @@ export default function Layout() {
         </nav>
       </header>
       <main>
-        <Outlet />
+        <Outlet context={{ user }} />
       </main>
     </div>
   );

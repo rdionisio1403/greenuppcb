@@ -5,7 +5,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Response, Request, status
 from sqlalchemy.orm import Session
 
-from app.dependencies import get_db, get_current_user, require_csrf
+from app.dependencies import get_db, get_current_user, require_csrf, require_admin
 from app.models.user import User
 from app.models.session import Session as UserSession
 from app.schemas.user import UserCreate, UserLogin, UserResponse
@@ -111,6 +111,29 @@ def login(
             detail="Incorrect username or password",
         )
 
+    if db_user.role != user.role:
+        record_failed_attempt(ip_key)
+        record_failed_attempt(username_key)
+
+        logger.warning(
+            "LOGIN_FAILED username=%s ip=%s reason=role_mismatch",
+            user.username,
+            client_ip,
+        )
+
+        log_audit(
+            db=db,
+            event_type="LOGIN_FAILED",
+            request=request,
+            user_id=db_user.id,
+            details="role_mismatch",
+        )
+
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+        )
+
     reset_attempts(ip_key)
     reset_attempts(username_key)
 
@@ -201,7 +224,7 @@ def get_me(current_user: User = Depends(get_current_user)):
 @router.get("/users-summary")
 def get_users_summary(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
 ):
     users = (
         db.query(User)

@@ -1,5 +1,6 @@
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, ConfigDict, Field, field_validator
+from typing import Literal
 
 
 WEAK_PASSWORDS = {
@@ -31,6 +32,7 @@ class UserCreate(BaseModel):
 class UserLogin(BaseModel):
     username: str
     password: str
+    role: Literal["user", "admin"]
 
 
 class UserResponse(BaseModel):
