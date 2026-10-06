@@ -8,7 +8,12 @@ from sqlalchemy.orm import Session
 from app.dependencies import get_db, get_current_user, require_csrf, require_admin
 from app.models.user import User
 from app.models.session import Session as UserSession
-from app.schemas.user import UserCreate, UserLogin, UserResponse
+from app.schemas.user import (
+    UserCreate,
+    UserLogin,
+    UserResponse,
+    ChangePasswordRequest,
+)
 from app.security import hash_password, verify_password
 from app.audit import log_audit
 from app.rate_limiter import (
@@ -214,6 +219,87 @@ def logout(
     )
 
     return {"message": "Logout successful"}
+
+
+@router.post("/change-password")
+def change_password(
+    password_data: ChangePasswordRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    csrf_session: UserSession = Depends(require_csrf),
+):
+    if csrf_session.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid session",
+        )
+
+    if not verify_password(
+        password_data.current_password,
+        current_user.password_hash,
+    ):
+        log_audit(
+            db=db,
+            event_type="PASSWORD_CHANGE_FAILED",
+            request=request,
+            user_id=current_user.id,
+            details="current_password_invalid",
+        )
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect",
+        )
+
+    if password_data.current_password == password_data.new_password:
+        log_audit(
+            db=db,
+            event_type="PASSWORD_CHANGE_FAILED",
+            request=request,
+            user_id=current_user.id,
+            details="new_password_matches_current_password",
+        )
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be different from the current password",
+        )
+
+    current_user.password_hash = hash_password(password_data.new_password)
+
+    sessions = (
+        db.query(UserSession)
+        .filter(UserSession.user_id == current_user.id)
+        .all()
+    )
+
+    revoked_session_count = len(sessions)
+
+    for user_session in sessions:
+        db.delete(user_session)
+
+    db.commit()
+
+    log_audit(
+        db=db,
+        event_type="PASSWORD_CHANGED",
+        request=request,
+        user_id=current_user.id,
+        details=f"revoked_sessions={revoked_session_count}",
+    )
+
+    response.delete_cookie(
+        key=SESSION_COOKIE_NAME,
+        httponly=True,
+        samesite="lax",
+    )
+
+    return {
+        "message": "Password changed successfully. Please log in again.",
+        "revoked_sessions": revoked_session_count,
+    }
 
 
 @router.get("/me", response_model=UserResponse)

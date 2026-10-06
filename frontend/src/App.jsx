@@ -8,6 +8,7 @@ import PCBCreate from "./pages/PCBCreate";
 import PCBDetail from "./pages/PCBDetail";
 import Dashboard from "./pages/Dashboard";
 import UserManagement from "./pages/UserManagement";
+import ChangePassword from "./pages/ChangePassword";
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
             <Route path="new" element={<PCBCreate />} />
             <Route path="pcbs/:id" element={<PCBDetail />} />
             <Route path="users" element={<UserManagement />} />
+            <Route path="change-password" element={<ChangePassword />} />
           </Route>
         </Route>
       </Routes>

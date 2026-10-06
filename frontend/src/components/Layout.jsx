@@ -104,6 +104,17 @@ export default function Layout() {
           )}
 
           <Link
+            to="/change-password"
+            style={
+              location.pathname === "/change-password"
+                ? activeStyle
+                : inactiveStyle
+            }
+          >
+            🔑 Change Password
+          </Link>
+
+          <Link
             to="/new"
             style={{
               padding: "8px 16px",
