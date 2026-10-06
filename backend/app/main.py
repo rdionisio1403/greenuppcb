@@ -809,7 +809,7 @@ def view_full_relational_table(db: Session = Depends(get_db), _admin=Depends(req
                     const text = row.innerText.toLowerCase();
                     const textUnderscore = text.replace(/\s+/g, "_");
                     
-                    // Doğrudan metin, alt çizgili metin veya archive prefix kontrolü
+                    // Direct text, underscored text, or archive prefix check
                     if (text.includes(query) || textUnderscore.includes(cleanQuery)) return true;
                     if (query.length >= 2 && ("archived".startsWith(query) || "archive".startsWith(query)) && text.includes("archived")) {
                         return true;
@@ -830,7 +830,7 @@ def view_full_relational_table(db: Session = Depends(get_db), _admin=Depends(req
                 allRows.forEach(row => { row.style.display = "none"; });
                 filteredRows.slice(startIdx, endIdx).forEach(row => { row.style.display = ""; });
 
-                // Sayaç ve sayfa göstergesi
+                // Counter and page indicator
                 const counter = document.getElementById("tableCounter");
                 if (counter) {
                     if (totalItems === 0) {
@@ -885,7 +885,7 @@ def view_full_relational_table(db: Session = Depends(get_db), _admin=Depends(req
                 }
             }
 
-            // Sayfa yüklendiğinde otomatik başlat
+            // Automatically start when the page loads
             window.addEventListener("DOMContentLoaded", () => {
                 applyTableFilterAndPagination();
             });
