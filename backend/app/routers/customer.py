@@ -17,7 +17,10 @@ def create_customer(
     csrf_session=Depends(require_csrf),
 ):
     """Creates a new customer entry."""
-    customer = Customer(**data.model_dump())
+    customer = Customer(
+        **data.model_dump(),
+        created_by_user_id=current_user.id,
+    )
     db.add(customer)
     db.commit()
     db.refresh(customer)
@@ -27,13 +30,23 @@ def create_customer(
 @router.get("", response_model=List[CustomerRead])
 def list_customers(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     """Retrieves all customers with pagination."""
-    return db.query(Customer).offset(skip).limit(limit).all()
+    query = db.query(Customer)
+
+    if current_user.role != "admin":
+        query = query.filter(Customer.created_by_user_id == current_user.id)
+
+    return query.offset(skip).limit(limit).all()
 
 
 @router.get("/{id}", response_model=CustomerRead)
 def get_customer(id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     """Retrieves a single customer by primary ID."""
     customer = db.query(Customer).filter(Customer.id == id).first()
+
     if not customer:
         raise HTTPException(status_code=404, detail="Customer not found")
+
+    if current_user.role != "admin" and customer.created_by_user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Customer access denied")
+
     return customer

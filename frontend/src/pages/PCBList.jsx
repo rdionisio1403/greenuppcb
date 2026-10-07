@@ -140,7 +140,7 @@ export default function PCBList() {
           gap: "16px"
         }}
       >
-        <div>
+        <div style={{ textAlign: "left" }}>
           <h1
             style={{
               fontSize: "1.6rem",

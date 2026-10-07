@@ -73,20 +73,15 @@ def create_pcb(
         raise HTTPException(status_code=409, detail="Internal reference already exists")
 
     pcb_dict = data.model_dump()
-    
-    if pcb_dict.get("customer_id"):
-        cust = db.query(Customer).filter(Customer.id == pcb_dict["customer_id"]).first()
-        if cust:
-            pcb_dict["customer_name"] = cust.name
-    elif pcb_dict.get("customer_name"):
-        c_name = pcb_dict["customer_name"].strip()
-        cust = db.query(Customer).filter(Customer.name.ilike(c_name)).first()
-        if not cust:
-            cust = Customer(name=c_name)
-            db.add(cust)
-            db.flush()
-        pcb_dict["customer_id"] = cust.id
-        pcb_dict["customer_name"] = cust.name
+
+    cust = db.query(Customer).filter(Customer.id == pcb_dict["customer_id"]).first()
+    if not cust:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
+    if current_user.role != "admin" and cust.created_by_user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Customer access denied")
+
+    pcb_dict["customer_name"] = cust.name
 
     pcb = PCB(**pcb_dict)
     db.add(pcb)
@@ -217,8 +212,14 @@ def update_pcb(
 
     if "customer_id" in update_data and update_data["customer_id"]:
         cust = db.query(Customer).filter(Customer.id == update_data["customer_id"]).first()
-        if cust:
-            update_data["customer_name"] = cust.name
+
+        if not cust:
+            raise HTTPException(status_code=404, detail="Customer not found")
+
+        if current_user.role != "admin" and cust.created_by_user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Customer access denied")
+
+        update_data["customer_name"] = cust.name
 
     for field, value in update_data.items():
         setattr(pcb, field, value)

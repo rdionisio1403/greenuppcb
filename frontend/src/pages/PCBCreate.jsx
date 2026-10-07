@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { createPCB } from "../api/pcbs";
+import { getCustomers, createCustomer } from "../api/customers";
 
 export default function PCBCreate() {
   const navigate = useNavigate();
@@ -10,7 +11,7 @@ export default function PCBCreate() {
 
   const [formData, setFormData] = useState({
     internal_reference: "",
-    customer_name: "",
+    customer_id: "",
     equipment: "",
     manufacturer: "",
     pcb_model: "",
@@ -18,8 +19,29 @@ export default function PCBCreate() {
     date_received: new Date().toISOString().split("T")[0],
     failure_description: "",
   });
+  const [customers, setCustomers] = useState([]);
   const [error, setError] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showCustomerForm, setShowCustomerForm] = useState(false);
+  const [customerSaving, setCustomerSaving] = useState(false);
+  const [customerForm, setCustomerForm] = useState({
+    name: "",
+    contact_info: "",
+    reference: "",
+  });
+
+  useEffect(() => {
+    async function loadCustomers() {
+      try {
+        const data = await getCustomers();
+        setCustomers(data);
+      } catch (err) {
+        setError(err.message || "Failed to load customers");
+      }
+    }
+
+    loadCustomers();
+  }, []);
 
   useEffect(() => {
     if (reintakeData) {
@@ -30,7 +52,7 @@ export default function PCBCreate() {
       setFormData((prev) => ({
         ...prev,
         internal_reference: generatedRef,
-        customer_name: reintakeData.customer_name || "",
+        customer_id: reintakeData.customer_id || "",
         equipment: reintakeData.equipment || "",
         manufacturer: reintakeData.manufacturer || "",
         pcb_model: reintakeData.pcb_model || "",
@@ -81,7 +103,30 @@ export default function PCBCreate() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+      <form
+        onSubmit={handleSubmit}
+        onKeyDown={(e) => {
+          if (e.key !== "Enter") {
+            return;
+          }
+
+          e.preventDefault();
+
+          const form = e.currentTarget;
+          const focusable = Array.from(
+            form.querySelectorAll(
+              'input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled])'
+            )
+          );
+
+          const currentIndex = focusable.indexOf(e.target);
+
+          if (currentIndex >= 0 && currentIndex < focusable.length - 1) {
+            focusable[currentIndex + 1].focus();
+          }
+        }}
+        style={{ display: "flex", flexDirection: "column", gap: "12px" }}
+      >
         <div>
           <label style={{ fontSize: "0.8rem", color: "#8b949e", display: "block", marginBottom: "4px" }}>Internal Reference *</label>
           <input
@@ -105,13 +150,163 @@ export default function PCBCreate() {
         </div>
 
         <div>
-          <label style={{ fontSize: "0.8rem", color: "#8b949e", display: "block", marginBottom: "4px" }}>Customer Name</label>
-          <input
+          <label style={{ fontSize: "0.8rem", color: "#8b949e", display: "block", marginBottom: "4px" }}>
+            Customer *
+          </label>
+
+          <select
+            required
             style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
-            placeholder="Customer Name"
-            value={formData.customer_name}
-            onChange={(e) => setFormData({ ...formData, customer_name: e.target.value })}
-          />
+            value={formData.customer_id}
+            onChange={(e) =>
+              setFormData({
+                ...formData,
+                customer_id: e.target.value ? Number(e.target.value) : "",
+              })
+            }
+          >
+            <option value="">Select Customer</option>
+            {customers.map((customer) => (
+              <option key={customer.id} value={customer.id}>
+                {customer.name}
+              </option>
+            ))}
+          </select>
+
+          <button
+            type="button"
+            onClick={() => {
+              setShowCustomerForm((current) => !current);
+              setError(null);
+            }}
+            style={{
+              marginTop: "8px",
+              padding: "7px 11px",
+              background: "transparent",
+              color: "#93c5fd",
+              border: "1px solid #475569",
+              borderRadius: "6px",
+              cursor: "pointer",
+              fontSize: "0.85rem",
+            }}
+          >
+            {showCustomerForm ? "Cancel" : "+ Add New Customer"}
+          </button>
+
+          {showCustomerForm && (
+            <div
+              style={{
+                marginTop: "12px",
+                padding: "14px",
+                border: "1px solid #334155",
+                borderRadius: "8px",
+                background: "#151a23",
+              }}
+            >
+              <div
+                style={{
+                  color: "#e2e8f0",
+                  fontSize: "0.9rem",
+                  fontWeight: "600",
+                  marginBottom: "12px",
+                }}
+              >
+                Add New Customer
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                <input
+                  required
+                  style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
+                  placeholder="Customer Name *"
+                  value={customerForm.name}
+                  onChange={(e) =>
+                    setCustomerForm({
+                      ...customerForm,
+                      name: e.target.value,
+                    })
+                  }
+                />
+
+                <input
+                  style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
+                  placeholder="Contact Info"
+                  value={customerForm.contact_info}
+                  onChange={(e) =>
+                    setCustomerForm({
+                      ...customerForm,
+                      contact_info: e.target.value,
+                    })
+                  }
+                />
+
+                <input
+                  style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
+                  placeholder="Reference"
+                  value={customerForm.reference}
+                  onChange={(e) =>
+                    setCustomerForm({
+                      ...customerForm,
+                      reference: e.target.value,
+                    })
+                  }
+                />
+
+                <button
+                  type="button"
+                  disabled={customerSaving || !customerForm.name.trim()}
+                  onClick={async () => {
+                    setCustomerSaving(true);
+                    setError(null);
+
+                    try {
+                      const newCustomer = await createCustomer({
+                        name: customerForm.name.trim(),
+                        contact_info: customerForm.contact_info.trim() || null,
+                        reference: customerForm.reference.trim() || null,
+                      });
+
+                      setCustomers((current) => [...current, newCustomer]);
+
+                      setFormData((current) => ({
+                        ...current,
+                        customer_id: newCustomer.id,
+                      }));
+
+                      setCustomerForm({
+                        name: "",
+                        contact_info: "",
+                        reference: "",
+                      });
+
+                      setShowCustomerForm(false);
+                    } catch (err) {
+                      setError(err.message || "Failed to create customer");
+                    } finally {
+                      setCustomerSaving(false);
+                    }
+                  }}
+                  style={{
+                    padding: "9px 12px",
+                    background:
+                      customerSaving || !customerForm.name.trim()
+                        ? "#334155"
+                        : "#2563eb",
+                    color: "#ffffff",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor:
+                      customerSaving || !customerForm.name.trim()
+                        ? "not-allowed"
+                        : "pointer",
+                    fontWeight: "600",
+                  }}
+                >
+                  {customerSaving ? "Creating..." : "Create Customer"}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div>

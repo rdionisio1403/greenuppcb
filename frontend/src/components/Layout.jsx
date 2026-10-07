@@ -86,10 +86,17 @@ export default function Layout() {
           {user?.role === "admin" && (
             <>
               <Link
-                to="/users"
-                style={location.pathname === "/users" ? activeStyle : inactiveStyle}
+                to="/user-management"
+                style={location.pathname === "/user-management" ? activeStyle : inactiveStyle}
               >
                 👥 User Management
+              </Link>
+
+              <Link
+                to="/customer-management"
+                style={location.pathname === "/customer-management" ? activeStyle : inactiveStyle}
+              >
+                🏢 Customers
               </Link>
 
               <a

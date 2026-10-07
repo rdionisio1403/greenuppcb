@@ -21,7 +21,7 @@ export default function PCBDetail() {
   // Form states
   const [diagForm, setDiagForm] = useState({ technician: "", fault_found: "", recommended_action: "" });
   const [repairForm, setRepairForm] = useState({ technician: "", actions_taken: "", components_replaced: "" });
-  const [testForm, setTestForm] = useState({ tester: "", test_type: "", result: "PASSED", notes: "" });
+  const [testForm, setTestForm] = useState({ tester: "", test_type: "", result: "", notes: "" });
 
   // Image upload states
   const [uploadCategory, setUploadCategory] = useState("before");
@@ -129,7 +129,7 @@ export default function PCBDetail() {
     setSavingTest(true);
     try {
       await addTest(id, testForm);
-      setTestForm({ tester: "", test_type: "", result: "PASSED", notes: "" });
+      setTestForm({ tester: "", test_type: "", result: "", notes: "" });
       loadData();
     } catch (err) {
       alert("Failed to add test: " + err.message);
@@ -313,7 +313,7 @@ export default function PCBDetail() {
               state: {
                 reintake: {
                   serial_number: pcb.serial_number || "",
-                  customer_name: pcb.customer_name || "",
+                  customer_id: pcb.customer_id || "",
                   equipment: pcb.equipment || "",
                   manufacturer: pcb.manufacturer || "",
                   pcb_model: pcb.pcb_model || "",
@@ -614,7 +614,7 @@ export default function PCBDetail() {
               value={testForm.result} 
               onChange={(e) => setTestForm({ ...testForm, result: e.target.value })}
             >
-              <option value="PASSED">PASSED</option>
+              <option value="" disabled>Select Result</option>\n                      <option value="PASSED">PASSED</option>
               <option value="FAILED">FAILED</option>
             </select>
             <input 

@@ -33,7 +33,7 @@ class PCBBase(BaseModel):
 
 
 class PCBCreate(PCBBase):
-    pass
+    customer_id: int
 
 
 class PCBUpdate(BaseModel):

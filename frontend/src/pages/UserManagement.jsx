@@ -184,11 +184,25 @@ export default function UserManagement() {
           flexWrap: "wrap",
         }}
       >
-        <div>
-          <h1 style={{ margin: 0, color: "#e2e8f0" }}>
+        <div style={{ textAlign: "left" }}>
+          <h1
+            style={{
+              margin: "0 0 8px 0",
+              color: "#e2e8f0",
+              fontSize: "1.6rem",
+              fontWeight: "700",
+              textAlign: "left",
+            }}
+          >
             User Management
           </h1>
-          <p style={{ color: "#94a3b8", marginTop: "8px" }}>
+          <p
+            style={{
+              color: "#94a3b8",
+              margin: 0,
+              fontSize: "0.9rem",
+            }}
+          >
             Manage users and active sessions.
           </p>
         </div>
