@@ -228,7 +228,7 @@ def update_pcb(
 
     log_audit(
         db=db,
-        event_type="PCB_CREATED",
+        event_type="PCB_UPDATED",
         request=request,
         user_id=current_user.id,
         details=f"pcb_id={pcb.id};internal_reference={pcb.internal_reference}",

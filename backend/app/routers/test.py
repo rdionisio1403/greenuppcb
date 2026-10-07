@@ -101,7 +101,7 @@ def update_test(
 
     log_audit(
         db=db,
-        event_type="TEST_CREATED",
+        event_type="TEST_UPDATED",
         request=request,
         user_id=current_user.id,
         details=f"test_id={test.id};pcb_id={pcb_id}",
