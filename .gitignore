@@ -12,3 +12,8 @@ dist/
 *.backup
 *.backup_*
 *.bak*
+
+# TLS certificates and private keys
+*.pem
+*.key
+*.csr

@@ -413,7 +413,7 @@ export default function PCBList() {
                     }}
                   >
                     <Link
-                      to={`/pcbs/${pcb.id}`}
+                      to={`/pcb/${pcb.id}`}
                       style={{
                         padding: "5px 12px",
                         backgroundColor: "#238636",

@@ -32,7 +32,7 @@ router = APIRouter(
 )
 
 
-SESSION_COOKIE_NAME = "session_id"
+SESSION_COOKIE_NAME = "__Host-session_id"
 SESSION_DURATION = timedelta(hours=1)
 
 
@@ -175,7 +175,7 @@ def login(
         key=SESSION_COOKIE_NAME,
         value=session_id,
         httponly=True,
-        secure=False,
+        secure=True,
         samesite="lax",
         max_age=int(SESSION_DURATION.total_seconds()),
     )

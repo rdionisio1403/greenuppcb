@@ -9,7 +9,7 @@ from app.models.session import Session as UserSession
 from app.audit import log_audit
 
 
-SESSION_COOKIE_NAME = "session_id"
+SESSION_COOKIE_NAME = "__Host-session_id"
 SESSION_DURATION = timedelta(hours=1)
 SESSION_IDLE_TIMEOUT = timedelta(minutes=30)
 

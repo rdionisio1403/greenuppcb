@@ -26,60 +26,121 @@ def generate_report(
         raise HTTPException(status_code=404, detail="PCB not found")
 
     try:
-        query = text("""
-            SELECT
-                p.id,
-                p.internal_reference,
-                p.customer_name,
-                p.equipment,
-                p.manufacturer,
-                p.pcb_model,
-                p.serial_number,
-                p.date_received,
-                p.failure_description,
-                p.status,
-                d.findings AS findings,
-                d.notes AS diag_notes,
-                r.action AS action,
-                r.components_rep AS components_rep,
-                t.notes AS test_notes,
-                t.result AS test_result
-            FROM pcbs p
-            LEFT JOIN diagnoses d ON p.id = d.pcb_id
-            LEFT JOIN repairs r ON p.id = r.pcb_id
-            LEFT JOIN tests t ON p.id = t.pcb_id
-            WHERE p.id = :pcb_id
-            ORDER BY d.id DESC, r.id DESC, t.id DESC
-            LIMIT 1;
-        """)
+        pcb_row = db.execute(
+            text("""
+                SELECT
+                    id,
+                    internal_reference,
+                    customer_name,
+                    equipment,
+                    manufacturer,
+                    pcb_model,
+                    serial_number,
+                    date_received,
+                    failure_description,
+                    status,
+                    created_at
+                FROM pcbs
+                WHERE id = :pcb_id;
+            """),
+            {"pcb_id": pcb_id}
+        ).mappings().first()
 
-        row = db.execute(query, {"pcb_id": pcb_id}).mappings().first()
+        if not pcb_row:
+            raise HTTPException(status_code=404, detail="PCB not found")
 
-        pcb_dict = dict(row) if row else {
-            "id": pcb.id,
-            "internal_reference": pcb.internal_reference,
-            "customer_name": pcb.customer_name,
-            "equipment": pcb.equipment,
-            "manufacturer": pcb.manufacturer,
-            "pcb_model": pcb.pcb_model,
-            "serial_number": pcb.serial_number,
-            "date_received": pcb.date_received,
-            "failure_description": pcb.failure_description,
-            "status": pcb.status,
-            "findings": None,
-            "diag_notes": None,
-            "action": None,
-            "components_rep": None,
-            "test_notes": None,
-            "test_result": None,
-        }
+        diagnosis_rows = db.execute(
+            text("""
+                SELECT
+                    id,
+                    date,
+                    technician,
+                    findings,
+                    notes
+                FROM diagnoses
+                WHERE pcb_id = :pcb_id
+                ORDER BY id;
+            """),
+            {"pcb_id": pcb_id}
+        ).mappings().all()
+
+        repair_rows = db.execute(
+            text("""
+                SELECT
+                    id,
+                    date,
+                    technician,
+                    action,
+                    components_rep,
+                    notes
+                FROM repairs
+                WHERE pcb_id = :pcb_id
+                ORDER BY id;
+            """),
+            {"pcb_id": pcb_id}
+        ).mappings().all()
+
+        test_rows = db.execute(
+            text("""
+                SELECT
+                    id,
+                    date,
+                    tester,
+                    test_type,
+                    result,
+                    notes
+                FROM tests
+                WHERE pcb_id = :pcb_id
+                ORDER BY id;
+            """),
+            {"pcb_id": pcb_id}
+        ).mappings().all()
+
+        pcb_dict = dict(pcb_row)
+
+        pcb_dict["diagnoses"] = [
+            {
+                "id": row["id"],
+                "date": row["date"],
+                "technician": row["technician"],
+                "fault_found": row["findings"],
+                "recommended_action": row["notes"],
+            }
+            for row in diagnosis_rows
+        ]
+
+        pcb_dict["repairs"] = [
+            {
+                "id": row["id"],
+                "date": row["date"],
+                "technician": row["technician"],
+                "actions_taken": row["action"],
+                "components_replaced": row["components_rep"],
+                "notes": row["notes"],
+            }
+            for row in repair_rows
+        ]
+
+        pcb_dict["tests"] = [
+            {
+                "id": row["id"],
+                "date": row["date"],
+                "tester": row["tester"],
+                "test_type": row["test_type"],
+                "result": row["result"],
+                "notes": row["notes"],
+            }
+            for row in test_rows
+        ]
 
         img_records = db.execute(
             text("""
                 SELECT
                     category,
                     filename_path,
-                    id
+                    id,
+                    technician,
+                    test_id
                 FROM images
                 WHERE pcb_id = :pcb_id
                 ORDER BY id;
@@ -98,7 +159,9 @@ def generate_report(
             [
                 {
                     "category": r.category,
-                    "path": r.filename_path
+                    "path": r.filename_path,
+                    "technician": r.technician,
+                    "test_id": r.test_id,
                 }
                 for r in img_records
             ],

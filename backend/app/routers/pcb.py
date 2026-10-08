@@ -100,6 +100,7 @@ def create_pcb(
 
 
 @router.get("", response_model=PaginatedPCBRead)
+@router.get("/", response_model=PaginatedPCBRead, include_in_schema=False)
 def list_pcbs(
     q: Optional[str] = None,
     page: int = 1,

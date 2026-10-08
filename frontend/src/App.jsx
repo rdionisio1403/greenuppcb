@@ -22,7 +22,7 @@ export default function App() {
             <Route index element={<PCBList />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="new" element={<PCBCreate />} />
-            <Route path="pcbs/:id" element={<PCBDetail />} />
+            <Route path="pcb/:id" element={<PCBDetail />} />
             <Route path="user-management" element={<UserManagement />} />
             <Route path="customer-management" element={<CustomerManagement />} />
             <Route path="change-password" element={<ChangePassword />} />

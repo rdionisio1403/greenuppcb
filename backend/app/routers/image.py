@@ -15,6 +15,7 @@ from app.models.image import Image
 from app.schemas.image import ImageRead
 
 
+from pathlib import Path
 class ImageCategory(str, Enum):
     BEFORE = "before"
     DURING = "during"

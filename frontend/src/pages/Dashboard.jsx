@@ -701,7 +701,7 @@ export default function Dashboard() {
                       }}
                     >
                       <Link
-                        to={`/pcbs/${p.id}`}
+                        to={`/pcb/${p.id}`}
                         style={{
                           padding: "4px 10px",
                           backgroundColor: "#21262d",

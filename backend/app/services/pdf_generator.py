@@ -1,6 +1,8 @@
 import os
 from datetime import datetime
 
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -18,6 +20,14 @@ from PIL import Image as PILImage
 UPLOAD_DIR = "/opt/greenupcb/backend/uploads"
 REPORTS_DIR = os.path.join(UPLOAD_DIR, "reports")
 os.makedirs(REPORTS_DIR, exist_ok=True)
+
+FONT_DIR = "/usr/share/fonts/truetype/dejavu"
+pdfmetrics.registerFont(
+    TTFont("DejaVuSans", os.path.join(FONT_DIR, "DejaVuSans.ttf"))
+)
+pdfmetrics.registerFont(
+    TTFont("DejaVuSans-Bold", os.path.join(FONT_DIR, "DejaVuSans-Bold.ttf"))
+)
 
 
 def safe(value, default="-"):
@@ -55,7 +65,7 @@ def generate_pcb_pdf(pcb_data: dict, images_list: list) -> str:
     title_style = ParagraphStyle(
         "DocTitle",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="DejaVuSans-Bold",
         fontSize=18,
         leading=22,
         textColor=colors.HexColor("#0f172a"),
@@ -65,7 +75,7 @@ def generate_pcb_pdf(pcb_data: dict, images_list: list) -> str:
     section_title = ParagraphStyle(
         "SecTitle",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="DejaVuSans-Bold",
         fontSize=12,
         leading=15,
         textColor=colors.HexColor("#1e3a8a"),
@@ -76,6 +86,7 @@ def generate_pcb_pdf(pcb_data: dict, images_list: list) -> str:
     cell_style = ParagraphStyle(
         "Cell",
         parent=styles["Normal"],
+        fontName="DejaVuSans",
         fontSize=8.5,
         leading=11.5,
     )
@@ -83,7 +94,7 @@ def generate_pcb_pdf(pcb_data: dict, images_list: list) -> str:
     cell_bold = ParagraphStyle(
         "CellB",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="DejaVuSans-Bold",
         fontSize=8.5,
         leading=11.5,
     )
@@ -91,6 +102,7 @@ def generate_pcb_pdf(pcb_data: dict, images_list: list) -> str:
     small_style = ParagraphStyle(
         "Small",
         parent=styles["Normal"],
+        fontName="DejaVuSans",
         fontSize=7.5,
         leading=10,
     )
@@ -98,7 +110,7 @@ def generate_pcb_pdf(pcb_data: dict, images_list: list) -> str:
     header_white = ParagraphStyle(
         "HeaderW",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="DejaVuSans-Bold",
         fontSize=8.5,
         leading=11.5,
         textColor=colors.white,
@@ -107,7 +119,7 @@ def generate_pcb_pdf(pcb_data: dict, images_list: list) -> str:
     badge_style = ParagraphStyle(
         "Badge",
         parent=styles["Normal"],
-        fontName="Helvetica-Bold",
+        fontName="DejaVuSans-Bold",
         fontSize=8,
         alignment=1,
         textColor=colors.HexColor("#1e293b"),
@@ -116,6 +128,7 @@ def generate_pcb_pdf(pcb_data: dict, images_list: list) -> str:
     empty_style = ParagraphStyle(
         "Empty",
         parent=styles["Normal"],
+        fontName="DejaVuSans",
         fontSize=8.5,
         leading=11,
         textColor=colors.HexColor("#64748b"),
@@ -325,7 +338,6 @@ def generate_pcb_pdf(pcb_data: dict, images_list: list) -> str:
                 Paragraph("Technician", header_white),
                 Paragraph("Actions Taken", header_white),
                 Paragraph("Components Replaced", header_white),
-                Paragraph("Notes", header_white),
             ]
         ]
 
@@ -343,16 +355,12 @@ def generate_pcb_pdf(pcb_data: dict, images_list: list) -> str:
                         safe(repair.get("components_replaced")),
                         cell_style,
                     ),
-                    Paragraph(
-                        safe(repair.get("notes")),
-                        cell_style,
-                    ),
                 ]
             )
 
         t_repair = Table(
             repair_data,
-            colWidths=[25, 65, 75, 165, 105, 88],
+            colWidths=[25, 65, 80, 205, 133],
             repeatRows=1,
         )
 
@@ -547,11 +555,6 @@ def generate_pcb_pdf(pcb_data: dict, images_list: list) -> str:
                     f"<b>[{category}]</b><br/>"
                     f"Technician: {technician}"
                 )
-
-                if im.get("test_id") is not None:
-                    caption += (
-                        f"<br/>Test ID: {im.get('test_id')}"
-                    )
 
                 card = [
                     rl_img,
