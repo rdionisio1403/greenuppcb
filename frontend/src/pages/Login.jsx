@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 export default function Login() {
@@ -241,6 +241,22 @@ export default function Login() {
                 : "Sign In"}
           </button>
         </form>
+        <div style={{ textAlign: "center", marginTop: "18px" }}>
+          <button
+            type="button"
+            onClick={() => navigate("/forgot-password")}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "#86efac",
+              cursor: "pointer",
+              fontSize: "0.95rem",
+              textDecoration: "underline",
+            }}
+          >
+            Forgot your password?
+          </button>
+        </div>
       </div>
     </div>
   );

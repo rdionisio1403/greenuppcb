@@ -195,6 +195,7 @@ def get_pcb(id: int, db: Session = Depends(get_db), current_user=Depends(get_cur
 @router.patch("/{id}", response_model=PCBRead)
 def update_pcb(
     id: int,
+    request: Request,
     data: PCBUpdate,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),

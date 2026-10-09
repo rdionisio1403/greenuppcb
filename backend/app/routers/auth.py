@@ -8,13 +8,20 @@ from sqlalchemy.orm import Session
 from app.dependencies import get_db, get_current_user, require_csrf, require_admin
 from app.models.user import User
 from app.models.session import Session as UserSession
+from app.models.password_reset import PasswordResetToken
 from app.schemas.user import (
     UserCreate,
     UserLogin,
     UserResponse,
     ChangePasswordRequest,
+    PasswordResetRequest,
+    PasswordResetConfirm,
 )
-from app.security import hash_password, verify_password
+from app.security import (
+    hash_password,
+    verify_password,
+    hash_reset_token,
+)
 from app.audit import log_audit
 from app.rate_limiter import (
     is_rate_limited,
@@ -34,6 +41,12 @@ router = APIRouter(
 
 SESSION_COOKIE_NAME = "__Host-session_id"
 SESSION_DURATION = timedelta(hours=1)
+
+# Email delivery stays disabled until an approved provider is configured.
+PASSWORD_RESET_EMAIL_ENABLED = False
+PASSWORD_RESET_REQUEST_MESSAGE = (
+    "If an account with that email exists, password reset instructions will be sent."
+)
 
 
 @router.post("/register", response_model=UserResponse)
@@ -298,6 +311,118 @@ def change_password(
 
     return {
         "message": "Password changed successfully. Please log in again.",
+        "revoked_sessions": revoked_session_count,
+    }
+
+
+@router.post("/password-reset/request", status_code=status.HTTP_202_ACCEPTED)
+def request_password_reset(
+    reset_data: PasswordResetRequest,
+    request: Request,
+):
+    # Email delivery is intentionally disabled until an approved provider is configured.
+    client_ip = request.client.host if request.client else "unknown"
+    ip_key = f"password-reset:ip:{client_ip}"
+
+    if is_rate_limited(ip_key):
+        return {"message": PASSWORD_RESET_REQUEST_MESSAGE}
+
+    record_failed_attempt(ip_key)
+
+    if PASSWORD_RESET_EMAIL_ENABLED:
+        # Fail closed: enabling this flag alone must never imply email delivery works.
+        logger.error(
+            "PASSWORD_RESET_EMAIL_ENABLED is true but no delivery provider is implemented."
+        )
+
+    # Do not look up accounts or create unusable tokens while delivery is disabled.
+    logger.info("PASSWORD_RESET_REQUEST_RECEIVED email_delivery_enabled=false")
+    return {"message": PASSWORD_RESET_REQUEST_MESSAGE}
+
+
+@router.post("/password-reset/confirm")
+def confirm_password_reset(
+    reset_data: PasswordResetConfirm,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    token_hash = hash_reset_token(reset_data.token)
+    reset_record = (
+        db.query(PasswordResetToken)
+        .filter(PasswordResetToken.token_hash == token_hash)
+        .with_for_update()
+        .first()
+    )
+
+    now = datetime.now(timezone.utc)
+    if reset_record is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired password reset token.",
+        )
+
+    expires_at = reset_record.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+    if reset_record.used_at is not None or expires_at <= now:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired password reset token.",
+        )
+
+    user = (
+        db.query(User)
+        .filter(User.id == reset_record.user_id)
+        .with_for_update()
+        .first()
+    )
+    if user is None or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired password reset token.",
+        )
+
+    user.password_hash = hash_password(reset_data.new_password)
+    reset_record.used_at = now
+
+    sessions = (
+        db.query(UserSession)
+        .filter(UserSession.user_id == user.id)
+        .all()
+    )
+    revoked_session_count = len(sessions)
+    for user_session in sessions:
+        db.delete(user_session)
+
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unable to reset password. Please try again.",
+        )
+
+    log_audit(
+        db=db,
+        event_type="PASSWORD_RESET_COMPLETED",
+        request=request,
+        user_id=user.id,
+        details=f"revoked_sessions={revoked_session_count}",
+    )
+
+    response.delete_cookie(
+        key=SESSION_COOKIE_NAME,
+        httponly=True,
+        samesite="lax",
+        secure=True,
+        path="/",
+    )
+
+    return {
+        "message": "Password reset successful. Please log in again.",
         "revoked_sessions": revoked_session_count,
     }
 

@@ -109,3 +109,125 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+/* Global Contacts footer */
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-route-content {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.contacts-footer {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 36px;
+  padding: 32px 24px 18px;
+  background: #172b3a;
+  color: #e2e8f0;
+  text-align: left;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.contacts-footer-content {
+  max-width: 1050px;
+  margin: 0 auto;
+}
+
+.contacts-footer-title {
+  margin: 0 0 24px;
+  color: #ffffff;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.contacts-footer-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 28px;
+}
+
+.contacts-footer-item h3 {
+  margin: 0 0 12px;
+  color: #86efac;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.contacts-footer-item address {
+  font-style: normal;
+  line-height: 1.8;
+}
+
+.contacts-footer-item p {
+  margin: 0;
+  line-height: 1.7;
+}
+
+.contacts-footer-item a {
+  color: #e2e8f0;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.contacts-footer-item a:hover {
+  color: #86efac;
+  text-decoration: underline;
+}
+
+.contacts-footer-note {
+  color: #b8c5d1;
+  font-size: 0.82rem;
+}
+
+.contacts-footer-mobile {
+  margin-top: 12px !important;
+}
+
+.contacts-footer-bottom {
+  margin-top: 28px;
+  padding-top: 16px;
+  border-top: 1px solid #405363;
+  color: #b8c5d1;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 700px) {
+  .contacts-footer {
+    padding: 28px 20px 18px;
+  }
+
+  .contacts-footer-grid {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+}
+
+
+@media (min-width: 701px) and (max-width: 900px) {
+  .contacts-footer-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+\n
+.contacts-footer-item a:has(.linkedin-icon) {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.linkedin-icon {
+  display: block;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.linkedin-link-text {
+  font-size: 0.95rem;
+}
