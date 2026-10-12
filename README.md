@@ -32,5 +32,6 @@ To replace manual or unstructured lab tracking with a structured, single-source-
 ├── documentation/           # Process workflow & MVP specifications
 │   ├── requirements.md      # Screen list & user stories
 │   └── workflow.md          # Full PCB lifecycle mapping
+├── DEPLOYMENT.md            # Deployment and server configuration guide
 └── README.md                # Project documentation root
 

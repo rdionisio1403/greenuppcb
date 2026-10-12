@@ -17,6 +17,7 @@ export default function PCBCreate() {
     pcb_model: "",
     serial_number: "",
     date_received: new Date().toISOString().split("T")[0],
+    status: "REGISTERED",
     failure_description: "",
   });
   const [customers, setCustomers] = useState([]);
@@ -349,6 +350,21 @@ export default function PCBCreate() {
             value={formData.date_received}
             onChange={(e) => setFormData({ ...formData, date_received: e.target.value })}
           />
+        </div>
+
+        <div>
+          <label style={{ fontSize: "0.8rem", color: "#8b949e", display: "block", marginBottom: "4px" }}>Initial Status</label>
+          <select
+            style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
+            value={formData.status}
+            onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+          >
+            <option value="REGISTERED">Registered</option>
+            <option value="IN_DIAGNOSIS">In Diagnosis</option>
+            <option value="REPAIRED">Repaired</option>
+            <option value="TESTING">Testing</option>
+            <option value="COMPLETED">Completed</option>
+          </select>
         </div>
 
         <div>

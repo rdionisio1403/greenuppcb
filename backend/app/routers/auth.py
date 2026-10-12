@@ -229,6 +229,8 @@ def logout(
         key=SESSION_COOKIE_NAME,
         httponly=True,
         samesite="lax",
+        secure=True,
+        path="/",
     )
 
     return {"message": "Logout successful"}
@@ -307,6 +309,8 @@ def change_password(
         key=SESSION_COOKIE_NAME,
         httponly=True,
         samesite="lax",
+        secure=True,
+        path="/",
     )
 
     return {

@@ -16,3 +16,10 @@ class RepairRead(RepairCreate):
     repair_date: date
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class RepairUpdate(BaseModel):
+    repair_date: Optional[date] = None
+    technician: Optional[str] = None
+    actions_taken: Optional[str] = None
+    components_replaced: Optional[str] = None

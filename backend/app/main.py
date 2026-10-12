@@ -5,6 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 import os
+import html
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -173,6 +174,42 @@ def view_full_relational_table(db: Session = Depends(get_db), _admin=Depends(req
         )
         im_map[pid].append(badge)
         
+    diagnoses_query = text("""
+        SELECT
+            d.id,
+            d.pcb_id,
+            d.date AS diagnosis_date,
+            d.technician,
+            d.findings AS fault_found,
+            d.notes AS recommended_action,
+            u.username AS username
+        FROM diagnoses d
+        LEFT JOIN users u ON u.id = d.user_id
+        ORDER BY d.id ASC;
+    """)
+
+    diagnosis_map = {}
+    for item in db.execute(diagnoses_query).fetchall():
+        record = dict(item._mapping)
+        diagnosis_map.setdefault(record["pcb_id"], []).append(record)
+
+    repairs_query = text("""
+        SELECT
+            id,
+            pcb_id,
+            date AS repair_date,
+            technician,
+            action AS actions_taken,
+            components_rep AS components_replaced
+        FROM repairs
+        ORDER BY id ASC;
+    """)
+
+    repair_map = {}
+    for item in db.execute(repairs_query).fetchall():
+        record = dict(item._mapping)
+        repair_map.setdefault(record["pcb_id"], []).append(record)
+
     records = db.execute(query).fetchall()
     table_rows = ""
     for r in records:
@@ -212,21 +249,131 @@ def view_full_relational_table(db: Session = Depends(get_db), _admin=Depends(req
         equip_clean = (m['equipment'] or '').replace("'", "\\'")
         cust_id = m['customer_id'] or 'null'
         
-        status_badge = f'<span class="badge-status">{m["status"]}</span>'
+        display_status = (m['status'] or '').upper()
+        if display_status == 'RECEIVED':
+            display_status = 'REGISTERED'
+        display_status = display_status.replace('_', ' ').title()
+        status_badge = f'<span class="badge-status">{display_status}</span>'
 
-        diagnosis_user_html = (
-            f'<div style="margin-top:12px; padding-top:10px; border-top:1px solid #e2e8f0;">'
-            f'<div style="font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; color:#64748b; margin-bottom:5px;">USER</div>'
-            f'<div style="font-size:12px; font-weight:700; color:#334155;">{m["diagnosis_users"]}</div>'
-            f'</div>'
-        )
+
+        diagnosis_cards = []
+        for record in diagnosis_map.get(pid, []):
+            diagnosis_date = record.get("diagnosis_date")
+            diagnosis_date = (
+                diagnosis_date.isoformat()
+                if hasattr(diagnosis_date, "isoformat")
+                else str(diagnosis_date or "")
+            )
+            technician = html.escape(str(record.get("technician") or ""), quote=True)
+            fault = html.escape(str(record.get("fault_found") or ""))
+            action = html.escape(str(record.get("recommended_action") or ""))
+            username = html.escape(str(record.get("username") or "Unknown"))
+            date_attr = html.escape(diagnosis_date, quote=True)
+            fault_attr = html.escape(str(record.get("fault_found") or ""), quote=True)
+            action_attr = html.escape(str(record.get("recommended_action") or ""), quote=True)
+
+            if all_tests_archived:
+                actions_html = (
+                    '<span style="font-size:11px;color:#b91c1c;font-weight:700;">'
+                    '🔒 Archived / immutable</span>'
+                )
+            else:
+                actions_html = (
+                    f'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">'
+                    f'<button type="button" onclick="openRecordEdit(this)" '
+                    f'data-record-type="diagnosis" data-pcb-id="{pid}" '
+                    f'data-record-id="{record["id"]}" data-technician="{technician}" '
+                    f'data-date="{date_attr}" data-field-one="{fault_attr}" '
+                    f'data-field-two="{action_attr}" '
+                    f'style="padding:4px 9px;border:1px solid #93c5fd;border-radius:5px;'
+                    f'background:#eff6ff;color:#1d4ed8;font-weight:700;cursor:pointer;">✏️ Edit</button>'
+                    f'<button type="button" onclick="deleteRecord(this)" '
+                    f'data-record-type="diagnosis" data-pcb-id="{pid}" '
+                    f'data-record-id="{record["id"]}" '
+                    f'style="padding:4px 9px;border:1px solid #fca5a5;border-radius:5px;'
+                    f'background:#fef2f2;color:#b91c1c;font-weight:700;cursor:pointer;">🗑️ Delete</button>'
+                    f'</div>'
+                )
+
+            diagnosis_cards.append(
+                f'<div style="padding:9px 0;border-bottom:1px dashed #e2e8f0;">'
+                f'<div style="font-size:12px;font-weight:700;color:#334155;">'
+                f'#{record["id"]} · {html.escape(diagnosis_date)} · {technician}</div>'
+                f'<div style="margin-top:4px;">{fault or "-"}</div>'
+                f'<div style="margin-top:3px;font-size:12px;color:#475569;">'
+                f'Recommended action: {action or "-"}</div>'
+                f'<div style="margin-top:3px;font-size:11px;color:#64748b;">User: {username}</div>'
+                f'{actions_html}</div>'
+            )
 
         diagnosis_html = (
-            f'<div>'
-            f'<div style="font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:0.06em; color:#64748b; margin-bottom:6px;">DIAGNOSIS</div>'
-            f'<div>{m["diagnosis"]}</div>'
-            f'{diagnosis_user_html}'
-            f'</div>'
+            '<div><div style="font-size:10px;font-weight:800;text-transform:uppercase;'
+            'letter-spacing:0.06em;color:#64748b;margin-bottom:6px;">DIAGNOSIS</div>'
+            + (
+                "".join(diagnosis_cards)
+                if diagnosis_cards
+                else '<span style="color:#94a3b8;font-size:12px;">No diagnoses recorded</span>'
+            )
+            + '</div>'
+        )
+
+        repair_cards = []
+        for record in repair_map.get(pid, []):
+            repair_date = record.get("repair_date")
+            repair_date = (
+                repair_date.isoformat()
+                if hasattr(repair_date, "isoformat")
+                else str(repair_date or "")
+            )
+            technician = html.escape(str(record.get("technician") or ""), quote=True)
+            actions = html.escape(str(record.get("actions_taken") or ""))
+            components = html.escape(str(record.get("components_replaced") or ""))
+            date_attr = html.escape(repair_date, quote=True)
+            actions_attr = html.escape(str(record.get("actions_taken") or ""), quote=True)
+            components_attr = html.escape(str(record.get("components_replaced") or ""), quote=True)
+
+            if all_tests_archived:
+                actions_html = (
+                    '<span style="font-size:11px;color:#b91c1c;font-weight:700;">'
+                    '🔒 Archived / immutable</span>'
+                )
+            else:
+                actions_html = (
+                    f'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">'
+                    f'<button type="button" onclick="openRecordEdit(this)" '
+                    f'data-record-type="repair" data-pcb-id="{pid}" '
+                    f'data-record-id="{record["id"]}" data-technician="{technician}" '
+                    f'data-date="{date_attr}" data-field-one="{actions_attr}" '
+                    f'data-field-two="{components_attr}" '
+                    f'style="padding:4px 9px;border:1px solid #93c5fd;border-radius:5px;'
+                    f'background:#eff6ff;color:#1d4ed8;font-weight:700;cursor:pointer;">✏️ Edit</button>'
+                    f'<button type="button" onclick="deleteRecord(this)" '
+                    f'data-record-type="repair" data-pcb-id="{pid}" '
+                    f'data-record-id="{record["id"]}" '
+                    f'style="padding:4px 9px;border:1px solid #fca5a5;border-radius:5px;'
+                    f'background:#fef2f2;color:#b91c1c;font-weight:700;cursor:pointer;">🗑️ Delete</button>'
+                    f'</div>'
+                )
+
+            repair_cards.append(
+                f'<div style="padding:9px 0;border-bottom:1px dashed #e2e8f0;">'
+                f'<div style="font-size:12px;font-weight:700;color:#334155;">'
+                f'#{record["id"]} · {html.escape(repair_date)} · {technician}</div>'
+                f'<div style="margin-top:4px;">{actions or "-"}</div>'
+                f'<div style="margin-top:3px;font-size:12px;color:#475569;">'
+                f'Components replaced: {components or "-"}</div>'
+                f'{actions_html}</div>'
+            )
+
+        repair_html = (
+            '<div><div style="font-size:10px;font-weight:800;text-transform:uppercase;'
+            'letter-spacing:0.06em;color:#64748b;margin-bottom:6px;">REPAIRS</div>'
+            + (
+                "".join(repair_cards)
+                if repair_cards
+                else '<span style="color:#94a3b8;font-size:12px;">No repairs recorded</span>'
+            )
+            + '</div>'
         )
 
         if all_tests_archived:
@@ -240,7 +387,7 @@ def view_full_relational_table(db: Session = Depends(get_db), _admin=Depends(req
             <td style="color: #1e293b; font-weight: 600;">{m['equipment']}</td>
             <td>{status_badge}</td>
             <td style="color: #1e293b; line-height: 1.6;">{diagnosis_html}</td>
-            <td style="color: #1e293b; line-height: 1.6;">{m['repair_done']}</td>
+            <td style="color: #1e293b; line-height: 1.6;">{repair_html}</td>
             <td>{test_evaluation_html}</td>
             <td>{imgs_html}</td>
             <td style="text-align: center;">{f'<a href="{m["pdf_file"]}" target="_blank" class="btn-pdf">📄 PDF</a>' if m.get('pdf_file') else f'<a href="/pcbs/{pid}/reports/download" target="_blank" class="btn-pdf">📄 PDF</a>'}</td>
@@ -515,12 +662,11 @@ def view_full_relational_table(db: Session = Depends(get_db), _admin=Depends(req
                 <div style="margin-bottom: 14px;">
                     <label style="display:block; font-size:12px; font-weight:700; color:#334155; margin-bottom:4px;">PCB Status</label>
                     <select id="pcbStatusSelect" style="width:100%; padding:8px 10px; border-radius:6px; border:1px solid #cbd5e1; font-size:13px;">
-                        <option value="REGISTERED">REGISTERED</option>
-                        <option value="IN_DIAGNOSIS">IN_DIAGNOSIS</option>
-                        <option value="REPAIRING">REPAIRING</option>
-                        <option value="TESTING">TESTING</option>
-                        <option value="COMPLETED">COMPLETED</option>
-                        <option value="SCRAPPED">SCRAPPED</option>
+                        <option value="REGISTERED">Registered</option>
+                        <option value="IN_DIAGNOSIS">In Diagnosis</option>
+                        <option value="REPAIRED">Repaired</option>
+                        <option value="TESTING">Testing</option>
+                        <option value="COMPLETED">Completed</option>
                     </select>
                 </div>
 
@@ -570,6 +716,49 @@ def view_full_relational_table(db: Session = Depends(get_db), _admin=Depends(req
                 </div>
             </div>
         </div>
+
+        <div id="recordEditModal" class="modal-backdrop" style="z-index:1100;">
+            <div class="modal-box" style="max-width:560px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                    <div>
+                        <h3 id="recordEditTitle" style="margin:0;font-size:18px;color:#0f172a;">Edit Record</h3>
+                        <span id="recordEditSubtitle" style="font-size:12px;color:#64748b;"></span>
+                    </div>
+                    <button type="button" onclick="closeRecordEdit()" aria-label="Close"
+                        style="border:none;background:none;font-size:20px;cursor:pointer;color:#64748b;">&times;</button>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                    <div>
+                        <label for="recordEditDate" style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;">Date</label>
+                        <input id="recordEditDate" type="date" required
+                            style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #cbd5e1;border-radius:6px;">
+                    </div>
+                    <div>
+                        <label for="recordEditTechnician" style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;">Technician</label>
+                        <input id="recordEditTechnician" type="text" required
+                            style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #cbd5e1;border-radius:6px;">
+                    </div>
+                    <div style="grid-column:1/-1;">
+                        <label id="recordEditFieldOneLabel" for="recordEditFieldOne"
+                            style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;">Details</label>
+                        <textarea id="recordEditFieldOne" rows="3"
+                            style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #cbd5e1;border-radius:6px;resize:vertical;"></textarea>
+                    </div>
+                    <div style="grid-column:1/-1;">
+                        <label id="recordEditFieldTwoLabel" for="recordEditFieldTwo"
+                            style="display:block;font-size:12px;font-weight:700;margin-bottom:4px;">Additional details</label>
+                        <textarea id="recordEditFieldTwo" rows="3"
+                            style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #cbd5e1;border-radius:6px;resize:vertical;"></textarea>
+                    </div>
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:18px;">
+                    <button type="button" onclick="closeRecordEdit()"
+                        style="padding:8px 14px;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;cursor:pointer;">Cancel</button>
+                    <button id="recordEditSaveButton" type="button" onclick="saveRecordEdit()"
+                        style="padding:8px 16px;border:none;border-radius:6px;background:#0284c7;color:white;font-weight:700;cursor:pointer;">Save Changes</button>
+                </div>
+            </div>
+        </div>
     """
 
     js_script = r"""
@@ -590,7 +779,9 @@ def view_full_relational_table(db: Session = Depends(get_db), _admin=Depends(req
 
                 document.getElementById('modalTitle').innerText = 'Manage PCB #' + pcbId;
                 document.getElementById('modalSubtitle').innerText = 'Serial: ' + serialNumber + ' | ' + equipment;
-                document.getElementById('pcbStatusSelect').value = currentStatus;
+                const normalizedStatus = (currentStatus || '').toUpperCase();
+                document.getElementById('pcbStatusSelect').value =
+                    normalizedStatus === 'RECEIVED' ? 'REGISTERED' : normalizedStatus;
                 document.getElementById('manageModal').style.display = 'flex';
 
                 await loadPcbTests(pcbId);
@@ -683,10 +874,19 @@ def view_full_relational_table(db: Session = Depends(get_db), _admin=Depends(req
                     };
                     if (activeCustomerId) payload.customer_id = activeCustomerId;
 
+                    const csrfToken = sessionStorage.getItem('csrf_token');
+                    if (!csrfToken) {
+                        alert('Your security token is missing. Please sign in again and retry.');
+                        return;
+                    }
+
                     const res = await fetch('/pcbs', {
                         method: 'POST',
                         credentials: 'include',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-Token': csrfToken
+                        },
                         body: JSON.stringify(payload)
                     });
 
@@ -784,6 +984,154 @@ def view_full_relational_table(db: Session = Depends(get_db), _admin=Depends(req
                     window.location.reload();
                 } catch (e) {
                     alert('Error saving updates: ' + e.message);
+                }
+            }
+
+
+            let activeRecord = null;
+
+            function openRecordEdit(button) {
+                const data = button.dataset;
+                activeRecord = {
+                    type: data.recordType,
+                    pcbId: data.pcbId,
+                    id: data.recordId
+                };
+
+                const isDiagnosis = activeRecord.type === 'diagnosis';
+                document.getElementById('recordEditTitle').innerText =
+                    isDiagnosis ? 'Edit Diagnosis' : 'Edit Repair';
+                document.getElementById('recordEditSubtitle').innerText =
+                    'PCB #' + data.pcbId + ' · Record #' + data.recordId;
+                document.getElementById('recordEditDate').value = data.date || '';
+                document.getElementById('recordEditTechnician').value = data.technician || '';
+                document.getElementById('recordEditFieldOne').value = data.fieldOne || '';
+                document.getElementById('recordEditFieldTwo').value = data.fieldTwo || '';
+                document.getElementById('recordEditFieldOneLabel').innerText =
+                    isDiagnosis ? 'Fault found' : 'Actions taken';
+                document.getElementById('recordEditFieldTwoLabel').innerText =
+                    isDiagnosis ? 'Recommended action' : 'Components replaced';
+                document.getElementById('recordEditModal').style.display = 'flex';
+            }
+
+            function closeRecordEdit() {
+                document.getElementById('recordEditModal').style.display = 'none';
+                activeRecord = null;
+            }
+
+            function getRecordCsrfHeaders() {
+                const token = sessionStorage.getItem('csrf_token');
+                if (!token) {
+                    alert('Your security token is missing. Please sign in again and retry.');
+                    return null;
+                }
+                return {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': token
+                };
+            }
+
+            async function getRecordError(response) {
+                try {
+                    const data = await response.json();
+                    return data.detail || data.message || ('Request failed (' + response.status + ')');
+                } catch (_) {
+                    return 'Request failed (' + response.status + ')';
+                }
+            }
+
+            async function saveRecordEdit() {
+                if (!activeRecord) return;
+
+                const headers = getRecordCsrfHeaders();
+                if (!headers) return;
+
+                const date = document.getElementById('recordEditDate').value;
+                const technician = document.getElementById('recordEditTechnician').value.trim();
+                const fieldOne = document.getElementById('recordEditFieldOne').value;
+                const fieldTwo = document.getElementById('recordEditFieldTwo').value;
+
+                if (!date || !technician || !fieldOne.trim()) {
+                    alert('Date, technician, and the main details field are required.');
+                    return;
+                }
+
+                const isDiagnosis = activeRecord.type === 'diagnosis';
+                const endpoint = '/pcbs/' + activeRecord.pcbId + '/' +
+                    (isDiagnosis ? 'diagnoses' : 'repairs') + '/' + activeRecord.id;
+                const payload = isDiagnosis
+                    ? {
+                        diagnosis_date: date,
+                        technician: technician,
+                        fault_found: fieldOne,
+                        recommended_action: fieldTwo
+                    }
+                    : {
+                        repair_date: date,
+                        technician: technician,
+                        actions_taken: fieldOne,
+                        components_replaced: fieldTwo
+                    };
+
+                const saveButton = document.getElementById('recordEditSaveButton');
+                saveButton.disabled = true;
+
+                try {
+                    const response = await fetch(endpoint, {
+                        method: 'PATCH',
+                        credentials: 'include',
+                        headers: headers,
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(await getRecordError(response));
+                    }
+
+                    closeRecordEdit();
+                    window.location.reload();
+                } catch (error) {
+                    alert('Could not update the record: ' + error.message);
+                } finally {
+                    saveButton.disabled = false;
+                }
+            }
+
+            async function deleteRecord(button) {
+                const data = button.dataset;
+                const isDiagnosis = data.recordType === 'diagnosis';
+                const recordLabel = isDiagnosis ? 'diagnosis' : 'repair';
+
+                if (!confirm(
+                    'Delete ' + recordLabel + ' record #' + data.recordId +
+                    ' from PCB #' + data.pcbId + '? This cannot be undone.'
+                )) return;
+
+                const token = sessionStorage.getItem('csrf_token');
+                if (!token) {
+                    alert('Your security token is missing. Please sign in again and retry.');
+                    return;
+                }
+
+                const endpoint = '/pcbs/' + data.pcbId + '/' +
+                    (isDiagnosis ? 'diagnoses' : 'repairs') + '/' + data.recordId;
+                button.disabled = true;
+
+                try {
+                    const response = await fetch(endpoint, {
+                        method: 'DELETE',
+                        credentials: 'include',
+                        headers: { 'X-CSRF-Token': token }
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(await getRecordError(response));
+                    }
+
+                    window.location.reload();
+                } catch (error) {
+                    alert('Could not delete the record: ' + error.message);
+                    button.disabled = false;
                 }
             }
 

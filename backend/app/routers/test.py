@@ -68,6 +68,7 @@ def list_tests(pcb_id: int, db: Session = Depends(get_db), current_user=Depends(
 
 @router.patch("/{test_id}", response_model=TestRead)
 def update_test(
+    request: Request,
     pcb_id: int,
     test_id: int,
     data: TestUpdate,
@@ -75,7 +76,21 @@ def update_test(
     current_user=Depends(get_current_user),
     csrf_session=Depends(require_csrf),
 ):
-    """Update an existing test record, enforcing the 1-year immutability business rule."""
+    """Update an existing test record, enforcing archive and 365-day locks."""
+    from app.routers.pcb import compute_is_archived
+
+    pcb = db.query(PCB).filter(PCB.id == pcb_id).first()
+    if not pcb:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"PCB with ID {pcb_id} not found."
+        )
+    if compute_is_archived(pcb):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Archived PCB records cannot be modified."
+        )
+
     test = db.query(Test).filter(Test.id == test_id, Test.pcb_id == pcb_id).first()
     if not test:
         raise HTTPException(

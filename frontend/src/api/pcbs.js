@@ -33,6 +33,21 @@ export async function createPCB(data) {
   return await res.json();
 }
 
+export async function updatePCB(id, data) {
+  const res = await apiFetch(`/pcbs/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Failed to update PCB: ${res.statusText}`);
+  }
+
+  return await res.json();
+}
+
 export async function addDiagnosis(pcbId, data) {
   const res = await apiFetch(`/pcbs/${pcbId}/diagnoses`, {
     method: "POST",
@@ -69,6 +84,19 @@ export async function addTest(pcbId, data) {
   return await res.json();
 }
 
+export async function updateTest(pcbId, testId, data) {
+  const res = await apiFetch(`/pcbs/${pcbId}/tests/${testId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Failed to update test: ${res.statusText}`);
+  }
+  return await res.json();
+}
+
 export async function uploadPCBImage(pcbId, formData) {
   const res = await apiFetch(`/pcbs/${pcbId}/images`, {
     method: "POST",
@@ -78,4 +106,78 @@ export async function uploadPCBImage(pcbId, formData) {
     throw new Error(`Failed to upload image: ${res.statusText}`);
   }
   return await res.json();
+}
+
+
+export async function updateDiagnosis(pcbId, diagnosisId, data) {
+  const res = await apiFetch(`/pcbs/${pcbId}/diagnoses/${diagnosisId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Failed to update diagnosis: ${res.statusText}`);
+  }
+
+  return await res.json();
+}
+
+export async function deleteDiagnosis(pcbId, diagnosisId) {
+  const res = await apiFetch(`/pcbs/${pcbId}/diagnoses/${diagnosisId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Failed to delete diagnosis: ${res.statusText}`);
+  }
+}
+
+export async function deleteRepair(pcbId, repairId) {
+  const res = await apiFetch(`/pcbs/${pcbId}/repairs/${repairId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Failed to delete repair: ${res.statusText}`);
+  }
+}
+
+export async function updateRepair(pcbId, repairId, data) {
+  const res = await apiFetch(`/pcbs/${pcbId}/repairs/${repairId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Failed to update repair: ${res.statusText}`);
+  }
+
+  return await res.json();
+}
+
+
+export async function replacePCBImage(pcbId, imageId, formData) {
+  const res = await apiFetch(`/pcbs/${pcbId}/images/${imageId}`, {
+    method: "PUT",
+    body: formData,
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Failed to update image: ${res.statusText}`);
+  }
+  return await res.json();
+}
+
+export async function deletePCBImage(pcbId, imageId) {
+  const res = await apiFetch(`/pcbs/${pcbId}/images/${imageId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Failed to delete image: ${res.statusText}`);
+  }
 }

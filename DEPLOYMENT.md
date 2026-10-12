@@ -19,15 +19,18 @@ Production project directory:
 
 Production domain:
 
-    http://greenuppcb.ipcb.pt
+    https://greenuppcb.ipcb.pt
 
-Main application endpoints:
+Main application:
 
-    http://greenuppcb.ipcb.pt/
-    http://greenuppcb.ipcb.pt/docs
-    http://greenuppcb.ipcb.pt/redoc
-    http://greenuppcb.ipcb.pt/openapi.json
-    http://greenuppcb.ipcb.pt/view-table
+    https://greenuppcb.ipcb.pt/
+
+Administrator-only endpoints:
+
+    https://greenuppcb.ipcb.pt/docs
+    https://greenuppcb.ipcb.pt/redoc
+    https://greenuppcb.ipcb.pt/openapi.json
+    https://greenuppcb.ipcb.pt/view-table
 
 ---
 
@@ -316,7 +319,7 @@ Nginx serves the production files from the `dist` directory.
 
 ## 13. Nginx Configuration
 
-Nginx is used as the public-facing web server and reverse proxy.
+Nginx is the public-facing web server and reverse proxy.
 
 Production hostname:
 
@@ -330,11 +333,16 @@ Backend proxy target:
 
     http://127.0.0.1:8000
 
+The active configuration contains HTTP and HTTPS server blocks. The HTTPS
+server listens on port 443, uses the configured certificate and private key,
+and sends an HSTS header. The HTTP server listens on port 80.
+
 The Nginx configuration provides routes for:
 
     /auth/
     /pcbs
     /users
+    /customers
     /docs
     /redoc
     /openapi.json
@@ -346,11 +354,15 @@ Inspect the active Nginx configuration:
 
     sudo grep -nE 'server_name|listen|location|proxy_pass|root' /etc/nginx/sites-enabled/greenuppcb
 
+Inspect the effective security headers:
+
+    sudo nginx -T 2>/dev/null | grep -nEi 'Content-Security-Policy|Strict-Transport-Security|X-Content-Type-Options|X-Frame-Options|Referrer-Policy'
+
 Test the Nginx configuration:
 
     sudo nginx -t
 
-Reload Nginx after configuration changes:
+Reload Nginx after approved configuration changes:
 
     sudo systemctl reload nginx
 
@@ -358,29 +370,27 @@ Check the Nginx service:
 
     sudo systemctl status nginx --no-pager
 
+Do not change TLS certificates, HTTPS settings, or security headers without
+the required authorization and a reviewed configuration change.
+
 ---
 
 ## 14. Production Endpoints
 
 Main application:
 
-    http://greenuppcb.ipcb.pt/
+    https://greenuppcb.ipcb.pt/
 
-FastAPI Swagger documentation:
+The following API documentation and database-view endpoints require
+administrator authentication:
 
-    http://greenuppcb.ipcb.pt/docs
+    https://greenuppcb.ipcb.pt/docs
+    https://greenuppcb.ipcb.pt/redoc
+    https://greenuppcb.ipcb.pt/openapi.json
+    https://greenuppcb.ipcb.pt/view-table
 
-ReDoc:
-
-    http://greenuppcb.ipcb.pt/redoc
-
-OpenAPI schema:
-
-    http://greenuppcb.ipcb.pt/openapi.json
-
-Lifecycle database view:
-
-    http://greenuppcb.ipcb.pt/view-table
+An unauthenticated request to an administrator-only endpoint is expected
+to be rejected. Do not make these endpoints public to simplify access.
 
 ---
 
@@ -390,16 +400,45 @@ The application provides authentication endpoints under:
 
     /auth/
 
-The frontend uses the authentication token for protected API requests.
+Protected API endpoints require a valid authenticated session. The session is
+maintained using the `__Host-session_id` cookie.
 
-Protected endpoints require a valid access token where applicable.
+Session cookie security settings:
 
-Authentication should be verified after deployment by testing:
+- `HttpOnly`: JavaScript cannot read the session cookie.
+- `Secure`: The browser sends the cookie only over HTTPS.
+- `SameSite=Lax`: Provides an additional cross-site request restriction.
+- Cookie prefix: `__Host-`, which requires HTTPS, the root path, and no Domain
+  attribute in a compliant browser.
+- Maximum session duration: 1 hour.
+- Idle timeout: 30 minutes without activity.
 
-- Login
-- Current authenticated user
-- Protected API endpoints
-- Token expiration or logout behavior where implemented
+Write operations protected by CSRF validation must include the expected
+CSRF token. Do not disable authentication or CSRF checks to resolve access
+problems.
+
+After deployment, verify the following in the deployed environment:
+
+- Login and logout.
+- Access to protected endpoints while authenticated.
+- Rejection of unauthenticated requests.
+- Session expiration after the configured duration or idle timeout.
+- CSRF validation for protected write operations.
+- Admin-only access to user-management and API documentation endpoints.
+- Session-cookie clearing after logout and password change.
+
+Password and account security status:
+
+- Authenticated password changes and `PASSWORD_CHANGED` audit events are
+  implemented in the application code.
+- Password-reset request and confirmation endpoints exist, but email delivery
+  is disabled because an approved delivery provider is not configured.
+- MFA/2FA and re-authentication for sensitive actions have not been verified.
+- A concurrent-session limit has not been verified.
+
+Do not describe unverified controls as operational. If a session expires,
+sign in again and retry the request. Never make protected endpoints public as
+a workaround.
 
 ---
 
@@ -608,17 +647,16 @@ Reload Nginx:
 
 ### Step 8 — Verify the deployment
 
-Open:
+Open the application over HTTPS:
 
-    http://greenuppcb.ipcb.pt/
+    https://greenuppcb.ipcb.pt/
 
-Swagger:
+Verify Swagger and OpenAPI while authenticated as an administrator:
 
-    http://greenuppcb.ipcb.pt/docs
+    https://greenuppcb.ipcb.pt/docs
+    https://greenuppcb.ipcb.pt/openapi.json
 
-OpenAPI:
-
-    http://greenuppcb.ipcb.pt/openapi.json
+Unauthenticated requests to these administrator-only endpoints should be rejected.
 
 ---
 
@@ -701,7 +739,8 @@ Apply migrations:
 
 ## 23. Security Notes
 
-Production secrets must be stored in environment files or another secure secret-management system.
+Production secrets must be stored in environment files or another secure
+secret-management system.
 
 Do not commit:
 
@@ -715,9 +754,41 @@ Do not commit:
 
 Database backups must be stored separately from the source code repository.
 
-Only required production services and ports should be publicly accessible.
+### Verified by Code Review
 
----
+- The session cookie is named `__Host-session_id`.
+- Login sets the cookie with `HttpOnly`, `Secure`, and `SameSite=Lax`.
+- The application defines a one-hour maximum session duration and a
+  30-minute idle timeout.
+- CSRF validation is required for protected write operations.
+- Authenticated password changes are implemented.
+- Password changes generate a `PASSWORD_CHANGED` audit event.
+- Password-reset request and confirmation endpoints exist.
+- API documentation and the database view require administrator access.
+- Logout, password change, and password-reset confirmation clear the session
+  cookie using `Secure` and `Path=/` settings.
+
+These findings reflect code review and configuration inspection. They do not
+replace runtime verification of every security behavior.
+
+### Known Limitations and Unverified Controls
+
+- Password-reset email delivery is disabled. An approved email provider has
+  not been configured; email-based password reset is not operational.
+- The effective Nginx configuration search did not show a
+  `Content-Security-Policy` header. CSP must not be considered deployed until
+  it is configured and verified.
+- Multi-factor authentication (MFA/2FA) has not been verified as implemented.
+- Re-authentication for sensitive actions has not been verified.
+- A concurrent-session limit has not been verified.
+- Automated tests have not specifically verified cookie-clearing behavior
+  for logout and authenticated password changes.
+- Password-reset token security tests passed, but this does not establish that
+  every password-reset endpoint behavior has been tested in production.
+
+Only required production services and ports should be publicly accessible.
+Do not expose administrator-only endpoints or disable security checks to
+work around authentication or session-expiration issues.
 
 ## 24. Deployment Architecture
 
@@ -754,23 +825,30 @@ Before considering a deployment complete, verify:
 
 - Repository source code is available
 - README is available
-- Documentation is available
-- DEPLOYMENT.md is available
+- DEPLOYMENT.md reflects the current implementation and deployment
 - Alembic migration files are available
 - `.gitignore` is configured
 - Backend virtual environment is configured
-- Production `.env` is configured
+- Production environment variables are configured without exposing secrets
 - PostgreSQL is running
 - Database migrations are applied
 - FastAPI backend is running
 - systemd service is active
 - Frontend production build exists
-- Nginx configuration is valid
-- Nginx is running
-- Swagger is accessible
-- OpenAPI is accessible
+- Nginx configuration is valid and Nginx is running
+- HTTPS certificate and HTTPS endpoint are verified
+- HSTS is present in the effective HTTPS configuration
+- CSP is configured and verified; otherwise record it as not enabled
 - Frontend is accessible
+- Login, logout, session expiration, and CSRF protection are tested
+- Session-cookie clearing is tested after logout and password change
+- Administrator-only endpoints reject unauthenticated requests
+- API documentation and database view work for an authorized administrator
+- Password-reset email delivery is not described as operational while disabled
 - Database backup is stored separately from Git
+
+Track MFA/2FA, sensitive-action re-authentication, and concurrent-session
+limits as open items until their implementation is verified.
 
 ---
 
@@ -784,11 +862,11 @@ The production project directory is:
 
 The main production application is available at:
 
-    http://greenuppcb.ipcb.pt/
+    https://greenuppcb.ipcb.pt/
 
-The API documentation is available at:
+Administrator-only API documentation is available at:
 
-    http://greenuppcb.ipcb.pt/docs
+    https://greenuppcb.ipcb.pt/docs
 
 The project repository is:
 

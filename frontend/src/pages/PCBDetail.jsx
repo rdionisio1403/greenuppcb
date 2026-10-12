@@ -1,16 +1,20 @@
 import React, { useEffect, useState } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
-import { getPCB, addDiagnosis, addRepair, addTest, uploadPCBImage } from "../api/pcbs";
+import { useParams, Link, useNavigate, useOutletContext } from "react-router-dom";
+import { getPCB, updatePCB, addDiagnosis, addRepair, addTest, uploadPCBImage, updateDiagnosis, updateRepair, updateTest, replacePCBImage, deletePCBImage, deleteDiagnosis, deleteRepair } from "../api/pcbs";
 import { apiFetch } from "../api/apiFetch";
+import { Pencil, Trash2 } from "lucide-react";
 
 export default function PCBDetail() {
 
+  const { user } = useOutletContext();
   const { id } = useParams();
   const navigate = useNavigate();
 
   const [pcb, setPcb] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [statusDraft, setStatusDraft] = useState("REGISTERED");
+  const [savingStatus, setSavingStatus] = useState(false);
 
   // Duplicate submission protection flags
   const [savingDiag, setSavingDiag] = useState(false);
@@ -21,7 +25,19 @@ export default function PCBDetail() {
   // Form states
   const [diagForm, setDiagForm] = useState({ technician: "", fault_found: "", recommended_action: "" });
   const [repairForm, setRepairForm] = useState({ technician: "", actions_taken: "", components_replaced: "" });
+
+  const [editingDiagnosisId, setEditingDiagnosisId] = useState(null);
+  const [diagnosisEditForm, setDiagnosisEditForm] = useState({});
+  const [savingDiagnosisEdit, setSavingDiagnosisEdit] = useState(false);
+  const [deletingDiagnosisId, setDeletingDiagnosisId] = useState(null);
+  const [editingRepairId, setEditingRepairId] = useState(null);
+  const [repairEditForm, setRepairEditForm] = useState({});
+  const [savingRepairEdit, setSavingRepairEdit] = useState(false);
+  const [deletingRepairId, setDeletingRepairId] = useState(null);
   const [testForm, setTestForm] = useState({ tester: "", test_type: "", result: "", notes: "" });
+  const [editingTestId, setEditingTestId] = useState(null);
+  const [testEditForm, setTestEditForm] = useState({});
+  const [savingTestEdit, setSavingTestEdit] = useState(false);
 
   // Image upload states
   const [uploadCategory, setUploadCategory] = useState("before");
@@ -29,11 +45,21 @@ export default function PCBDetail() {
   const [selectedTestId, setSelectedTestId] = useState("");
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [editingImageId, setEditingImageId] = useState(null);
+  const [imageEditForm, setImageEditForm] = useState({
+    category: "before",
+    technician: "",
+    test_id: "",
+  });
+  const [imageEditFile, setImageEditFile] = useState(null);
+  const [savingImageEdit, setSavingImageEdit] = useState(false);
+  const [deletingImageId, setDeletingImageId] = useState(null);
 
   const loadData = () => {
     getPCB(id)
       .then((data) => {
         setPcb(data);
+        setStatusDraft(data.status || "REGISTERED");
         setLoading(false);
       })
       .catch((err) => {
@@ -46,6 +72,23 @@ export default function PCBDetail() {
   useEffect(() => {
     loadData();
   }, [id]);
+
+  const handleStatusUpdate = async () => {
+    if (!pcb || pcb.is_archived || savingStatus) return;
+    if (statusDraft === pcb.status) return;
+
+    setSavingStatus(true);
+    try {
+      const updated = await updatePCB(id, { status: statusDraft });
+      setPcb((current) => ({ ...current, ...updated }));
+      setStatusDraft(updated.status || statusDraft);
+      alert("PCB status updated successfully.");
+    } catch (err) {
+      alert("Failed to update PCB status: " + err.message);
+    } finally {
+      setSavingStatus(false);
+    }
+  };
 
   const handleGenerateReport = async () => {
     if (generatingReport) return;
@@ -123,6 +166,87 @@ export default function PCBDetail() {
     }
   };
 
+
+  const handleSaveDiagnosisEdit = async (e) => {
+    e.preventDefault();
+    if (savingDiagnosisEdit || editingDiagnosisId === null) return;
+    setSavingDiagnosisEdit(true);
+    try {
+      await updateDiagnosis(id, editingDiagnosisId, diagnosisEditForm);
+      setEditingDiagnosisId(null);
+      setDiagnosisEditForm({});
+      await loadData();
+      alert("Diagnosis updated successfully.");
+    } catch (err) {
+      alert("Failed to update diagnosis: " + err.message);
+    } finally {
+      setSavingDiagnosisEdit(false);
+    }
+  };
+
+  const handleSaveRepairEdit = async (e) => {
+    e.preventDefault();
+    if (savingRepairEdit || editingRepairId === null) return;
+    setSavingRepairEdit(true);
+    try {
+      await updateRepair(id, editingRepairId, repairEditForm);
+      setEditingRepairId(null);
+      setRepairEditForm({});
+      await loadData();
+      alert("Repair updated successfully.");
+    } catch (err) {
+      alert("Failed to update repair: " + err.message);
+    } finally {
+      setSavingRepairEdit(false);
+    }
+  };
+
+  const handleDeleteDiagnosis = async (diagnosisId) => {
+    if (user?.role !== "admin" || deletingDiagnosisId !== null) return;
+    const confirmed = window.confirm(
+      "Delete this diagnosis permanently? This action cannot be undone."
+    );
+    if (!confirmed) return;
+
+    setDeletingDiagnosisId(diagnosisId);
+    try {
+      await deleteDiagnosis(id, diagnosisId);
+      if (editingDiagnosisId === diagnosisId) {
+        setEditingDiagnosisId(null);
+        setDiagnosisEditForm({});
+      }
+      await loadData();
+      alert("Diagnosis deleted successfully.");
+    } catch (err) {
+      alert("Failed to delete diagnosis: " + err.message);
+    } finally {
+      setDeletingDiagnosisId(null);
+    }
+  };
+
+  const handleDeleteRepair = async (repairId) => {
+    if (user?.role !== "admin" || deletingRepairId !== null) return;
+    const confirmed = window.confirm(
+      "Delete this repair record permanently? This action cannot be undone."
+    );
+    if (!confirmed) return;
+
+    setDeletingRepairId(repairId);
+    try {
+      await deleteRepair(id, repairId);
+      if (editingRepairId === repairId) {
+        setEditingRepairId(null);
+        setRepairEditForm({});
+      }
+      await loadData();
+      alert("Repair record deleted successfully.");
+    } catch (err) {
+      alert("Failed to delete repair: " + err.message);
+    } finally {
+      setDeletingRepairId(null);
+    }
+  };
+
   const handleAddTest = async (e) => {
     e.preventDefault();
     if (savingTest) return;
@@ -135,6 +259,24 @@ export default function PCBDetail() {
       alert("Failed to add test: " + err.message);
     } finally {
       setSavingTest(false);
+    }
+  };
+
+  const handleSaveTestEdit = async (e) => {
+    e.preventDefault();
+    if (savingTestEdit || editingTestId === null) return;
+
+    setSavingTestEdit(true);
+    try {
+      await updateTest(id, editingTestId, testEditForm);
+      setEditingTestId(null);
+      setTestEditForm({});
+      loadData();
+      alert("Test updated successfully.");
+    } catch (err) {
+      alert("Failed to update test: " + err.message);
+    } finally {
+      setSavingTestEdit(false);
     }
   };
 
@@ -172,6 +314,65 @@ export default function PCBDetail() {
     }
   };
 
+  const startImageEdit = (img) => {
+    setEditingImageId(img.id);
+    setImageEditForm({
+      category: img.category || "before",
+      technician: img.technician || "",
+      test_id: img.test_id == null ? "" : String(img.test_id),
+    });
+    setImageEditFile(null);
+  };
+
+  const cancelImageEdit = () => {
+    setEditingImageId(null);
+    setImageEditForm({ category: "before", technician: "", test_id: "" });
+    setImageEditFile(null);
+  };
+
+  const handleSaveImageEdit = async (e, imageId) => {
+    e.preventDefault();
+    if (savingImageEdit || !imageEditFile) {
+      if (!imageEditFile) alert("Please select a replacement image file.");
+      return;
+    }
+
+    setSavingImageEdit(true);
+    try {
+      const formData = new FormData();
+      formData.append("category", imageEditForm.category);
+      formData.append("technician", imageEditForm.technician || "Technician");
+      if (imageEditForm.test_id) formData.append("test_id", imageEditForm.test_id);
+      formData.append("file", imageEditFile);
+
+      await replacePCBImage(id, imageId, formData);
+      cancelImageEdit();
+      loadData();
+      alert("Image updated successfully.");
+    } catch (err) {
+      alert("Failed to update image: " + err.message);
+    } finally {
+      setSavingImageEdit(false);
+    }
+  };
+
+  const handleDeleteImage = async (imageId) => {
+    if (deletingImageId !== null) return;
+    if (!window.confirm("Delete this inspection image permanently?")) return;
+
+    setDeletingImageId(imageId);
+    try {
+      await deletePCBImage(id, imageId);
+      if (editingImageId === imageId) cancelImageEdit();
+      loadData();
+      alert("Image deleted successfully.");
+    } catch (err) {
+      alert("Failed to delete image: " + err.message);
+    } finally {
+      setDeletingImageId(null);
+    }
+  };
+
   if (loading) {
     return <div style={{ textAlign: "center", padding: "60px 0", color: "#8b949e", fontSize: "1rem" }}>Loading PCB lifecycle records...</div>;
   }
@@ -202,6 +403,16 @@ export default function PCBDetail() {
     borderRadius: "6px",
     fontSize: "0.85rem",
     boxSizing: "border-box"
+  };
+
+  const smallEditButton = {
+    padding: "5px 9px",
+    backgroundColor: "#21262d",
+    color: "#e6edf3",
+    border: "1px solid #30363d",
+    borderRadius: "5px",
+    cursor: "pointer",
+    fontSize: "0.78rem",
   };
 
   const btnSuccess = (disabled) => ({
@@ -363,6 +574,48 @@ export default function PCBDetail() {
             }}>
               Status: {pcb.status}
             </span>
+            {!pcb.is_archived && (
+              <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                <select
+                  aria-label="PCB status"
+                  value={statusDraft}
+                  disabled={savingStatus}
+                  onChange={(e) => setStatusDraft(e.target.value)}
+                  style={{
+                    backgroundColor: "#0d1117",
+                    color: "#e6edf3",
+                    border: "1px solid #30363d",
+                    borderRadius: "6px",
+                    padding: "6px 8px",
+                    fontSize: "0.82rem",
+                    maxWidth: "170px"
+                  }}
+                >
+                  <option value="REGISTERED">Registered</option>
+                  <option value="IN_DIAGNOSIS">In Diagnosis</option>
+                  <option value="REPAIRED">Repaired</option>
+                  <option value="TESTING">Testing</option>
+                  <option value="COMPLETED">Completed</option>
+                </select>
+                <button
+                  type="button"
+                  disabled={savingStatus || statusDraft === pcb.status}
+                  onClick={handleStatusUpdate}
+                  style={{
+                    padding: "7px 10px",
+                    backgroundColor: savingStatus || statusDraft === pcb.status ? "#21262d" : "#238636",
+                    color: savingStatus || statusDraft === pcb.status ? "#8b949e" : "#ffffff",
+                    border: "1px solid #30363d",
+                    borderRadius: "6px",
+                    cursor: savingStatus || statusDraft === pcb.status ? "not-allowed" : "pointer",
+                    fontSize: "0.82rem",
+                    fontWeight: "600"
+                  }}
+                >
+                  {savingStatus ? "Saving..." : "Save Status"}
+                </button>
+              </div>
+            )}
             {pcb.is_archived && (
               <span style={{
                 backgroundColor: "rgba(234, 88, 12, 0.2)",
@@ -410,10 +663,49 @@ export default function PCBDetail() {
             ) : (
               pcb.diagnoses.map((d) => (
                 <div key={d.id} style={{ backgroundColor: "#0d1117", border: "1px solid #21262d", borderRadius: "6px", padding: "14px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                    <strong style={{ color: "#58a6ff", fontSize: "0.92rem" }}>{d.technician}</strong>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                    <strong style={{ color: "#58a6ff", fontSize: "0.92rem", marginRight: "auto" }}>{d.technician}</strong>
                     <span style={{ color: "#8b949e", fontSize: "0.78rem" }}>{d.diagnosis_date ? String(d.diagnosis_date).split("T")[0] : ""}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+                    {!pcb.is_archived && (
+                      <button type="button" onClick={() => {
+                        setEditingDiagnosisId(d.id);
+                        setDiagnosisEditForm({
+                          technician: d.technician || "",
+                          fault_found: d.fault_found || d.findings || "",
+                          recommended_action: d.recommended_action || d.recommendation || "",
+                          diagnosis_date: d.diagnosis_date ? String(d.diagnosis_date).split("T")[0] : "",
+                        });
+                      }} style={smallEditButton} title="Edit diagnosis" aria-label="Edit diagnosis">
+                        {editingDiagnosisId === d.id ? <Pencil size={16} aria-label="Editing diagnosis" /> : <Pencil size={16} aria-label="Edit diagnosis" />}
+                      </button>
+                    )}
+                    {user?.role === "admin" && !pcb.is_archived && (
+                      <button
+                        type="button"
+                        disabled={deletingDiagnosisId === d.id}
+                        onClick={() => handleDeleteDiagnosis(d.id)}
+                        title="Delete diagnosis"
+                        aria-label="Delete diagnosis"
+                        style={{ ...smallEditButton, color: "#fecaca", borderColor: "#7f1d1d" }}
+                      >
+                        {deletingDiagnosisId === d.id ? "..." : <Trash2 size={16} aria-label="Delete diagnosis" />}
+                      </button>
+                    )}
+                    </div>
                   </div>
+                  {editingDiagnosisId === d.id && !pcb.is_archived && (
+                    <form onSubmit={handleSaveDiagnosisEdit} style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "12px" }}>
+                      <input required type="date" aria-label="Diagnosis date" style={inputStyle} value={diagnosisEditForm.diagnosis_date || ""} onChange={(e) => setDiagnosisEditForm({ ...diagnosisEditForm, diagnosis_date: e.target.value })} />
+                      <input required aria-label="Diagnosis technician" style={inputStyle} placeholder="Technician Name" value={diagnosisEditForm.technician || ""} onChange={(e) => setDiagnosisEditForm({ ...diagnosisEditForm, technician: e.target.value })} />
+                      <textarea required aria-label="Diagnostic findings" style={inputStyle} placeholder="Diagnostic Findings" value={diagnosisEditForm.fault_found || ""} onChange={(e) => setDiagnosisEditForm({ ...diagnosisEditForm, fault_found: e.target.value })} />
+                      <textarea aria-label="Recommended action" style={inputStyle} placeholder="Recommended Action (optional)" value={diagnosisEditForm.recommended_action || ""} onChange={(e) => setDiagnosisEditForm({ ...diagnosisEditForm, recommended_action: e.target.value })} />
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <button type="submit" disabled={savingDiagnosisEdit} style={btnSuccess(savingDiagnosisEdit)}>{savingDiagnosisEdit ? "Saving..." : "Save"}</button>
+                        <button type="button" disabled={savingDiagnosisEdit} style={smallEditButton} onClick={() => { setEditingDiagnosisId(null); setDiagnosisEditForm({}); }}>Cancel</button>
+                      </div>
+                    </form>
+                  )}
                   <p style={{ margin: "0 0 8px 0", fontSize: "0.88rem", color: "#e6edf3", textAlign: "center", lineHeight: "1.4" }}>
                     {d.fault_found || d.findings}
                     {d.technician && (
@@ -475,10 +767,49 @@ export default function PCBDetail() {
             ) : (
               pcb.repairs.map((r) => (
                 <div key={r.id} style={{ backgroundColor: "#0d1117", border: "1px solid #21262d", borderRadius: "6px", padding: "14px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-                    <strong style={{ color: "#f0883e", fontSize: "0.92rem" }}>{r.technician}</strong>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                    <strong style={{ color: "#f0883e", fontSize: "0.92rem", marginRight: "auto" }}>{r.technician}</strong>
                     <span style={{ color: "#8b949e", fontSize: "0.78rem" }}>{r.repair_date ? String(r.repair_date).split("T")[0] : ""}</span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
+                    {!pcb.is_archived && (
+                      <button type="button" onClick={() => {
+                        setEditingRepairId(r.id);
+                        setRepairEditForm({
+                          technician: r.technician || "",
+                          actions_taken: r.actions_taken || r.action || "",
+                          components_replaced: r.components_replaced || r.components_rep || "",
+                          repair_date: r.repair_date ? String(r.repair_date).split("T")[0] : "",
+                        });
+                      }} style={smallEditButton} title="Edit repair" aria-label="Edit repair">
+                        {editingRepairId === r.id ? <Pencil size={16} aria-label="Editing repair" /> : <Pencil size={16} aria-label="Edit repair" />}
+                      </button>
+                    )}
+                    {user?.role === "admin" && !pcb.is_archived && (
+                      <button
+                        type="button"
+                        disabled={deletingRepairId === r.id}
+                        onClick={() => handleDeleteRepair(r.id)}
+                        title="Delete repair"
+                        aria-label="Delete repair"
+                        style={{ ...smallEditButton, color: "#fecaca", borderColor: "#7f1d1d" }}
+                      >
+                        {deletingRepairId === r.id ? "..." : <Trash2 size={16} aria-label="Delete repair" />}
+                      </button>
+                    )}
+                    </div>
                   </div>
+                  {editingRepairId === r.id && !pcb.is_archived && (
+                    <form onSubmit={handleSaveRepairEdit} style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "12px" }}>
+                      <input required type="date" aria-label="Repair date" style={inputStyle} value={repairEditForm.repair_date || ""} onChange={(e) => setRepairEditForm({ ...repairEditForm, repair_date: e.target.value })} />
+                      <input required aria-label="Repair technician" style={inputStyle} placeholder="Technician Name" value={repairEditForm.technician || ""} onChange={(e) => setRepairEditForm({ ...repairEditForm, technician: e.target.value })} />
+                      <textarea required aria-label="Actions taken" style={inputStyle} placeholder="Actions Taken" value={repairEditForm.actions_taken || ""} onChange={(e) => setRepairEditForm({ ...repairEditForm, actions_taken: e.target.value })} />
+                      <textarea aria-label="Components replaced" style={inputStyle} placeholder="Components Replaced (optional)" value={repairEditForm.components_replaced || ""} onChange={(e) => setRepairEditForm({ ...repairEditForm, components_replaced: e.target.value })} />
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <button type="submit" disabled={savingRepairEdit} style={btnSuccess(savingRepairEdit)}>{savingRepairEdit ? "Saving..." : "Save"}</button>
+                        <button type="button" disabled={savingRepairEdit} style={smallEditButton} onClick={() => { setEditingRepairId(null); setRepairEditForm({}); }}>Cancel</button>
+                      </div>
+                    </form>
+                  )}
                   <p style={{ margin: "0 0 8px 0", fontSize: "0.88rem", color: "#e6edf3", textAlign: "center", lineHeight: "1.4" }}>
                     {r.actions_taken || r.action}
                     {r.technician && (
@@ -574,6 +905,80 @@ export default function PCBDetail() {
                       {t.result}
                     </span>
                   </div>
+                  {editingTestId === t.id ? (
+                    <form onSubmit={handleSaveTestEdit} style={{ display: "flex", flexDirection: "column", gap: "8px", margin: "12px 0" }}>
+                      <label style={{ color: "#8b949e", fontSize: "0.8rem" }}>Test Date</label>
+                      <input
+                        required
+                        type="date"
+                        style={inputStyle}
+                        value={testEditForm.test_date || ""}
+                        onChange={(e) => setTestEditForm({ ...testEditForm, test_date: e.target.value })}
+                      />
+                      <input
+                        required
+                        style={inputStyle}
+                        placeholder="Tester / Technician Name"
+                        value={testEditForm.tester || ""}
+                        onChange={(e) => setTestEditForm({ ...testEditForm, tester: e.target.value })}
+                      />
+                      <input
+                        required
+                        style={inputStyle}
+                        placeholder="Test Type"
+                        value={testEditForm.test_type || ""}
+                        onChange={(e) => setTestEditForm({ ...testEditForm, test_type: e.target.value })}
+                      />
+                      <select
+                        required
+                        style={inputStyle}
+                        value={testEditForm.result || ""}
+                        onChange={(e) => setTestEditForm({ ...testEditForm, result: e.target.value })}
+                      >
+                        <option value="" disabled>Select Result</option>
+                        <option value="PASSED">PASSED</option>
+                        <option value="FAILED">FAILED</option>
+                      </select>
+                      <textarea
+                        style={inputStyle}
+                        placeholder="Test Notes (optional)"
+                        value={testEditForm.notes || ""}
+                        onChange={(e) => setTestEditForm({ ...testEditForm, notes: e.target.value })}
+                      />
+                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                        <button type="submit" disabled={savingTestEdit} style={btnSuccess(savingTestEdit)}>
+                          {savingTestEdit ? "Saving..." : "Save Changes"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={savingTestEdit}
+                          style={smallEditButton}
+                          onClick={() => { setEditingTestId(null); setTestEditForm({}); }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  ) : (!locked && !pcb.is_archived && (
+                    <div style={{ display: "flex", justifyContent: "flex-end", margin: "8px 0" }}>
+                      <button
+                        type="button"
+                        style={smallEditButton}
+                        onClick={() => {
+                          setEditingTestId(t.id);
+                          setTestEditForm({
+                            test_date: String(t.test_date || "").slice(0, 10),
+                            tester: t.tester || t.technician || "",
+                            test_type: t.test_type || "",
+                            result: t.result || "",
+                            notes: t.notes || "",
+                          });
+                        }}
+                      >
+                        <Pencil size={16} aria-label="Edit test" />
+                      </button>
+                    </div>
+                  ))}
                   <div style={{ textAlign: "center", fontWeight: "700", color: "#f0f6fc", fontSize: "0.98rem", margin: "6px 0" }}>
                     {t.test_type}
                     {(t.tester || t.technician) && (
@@ -714,8 +1119,10 @@ export default function PCBDetail() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: "16px" }}>
             {pcb.images.map((img) => {
               const matchedTest = (pcb.tests || []).find((t) => t.id === img.test_id);
+              const isEditingImage = editingImageId === img.id;
+
               return (
-                <div key={img.id} style={{ border: "1px solid #30363d", borderRadius: "6px", overflow: "hidden", backgroundColor: "#0d1117" }}>
+                <div key={img.id} style={{ border: "1px solid #30363d", borderRadius: "6px", overflow: "hidden", backgroundColor: "#0d1117", display: "flex", flexDirection: "column", height: "100%" }}>
                   <a href={img.filename_path} target="_blank" rel="noreferrer">
                     <img
                       src={img.filename_path}
@@ -723,7 +1130,7 @@ export default function PCBDetail() {
                       style={{ width: "100%", height: "140px", objectFit: "cover", display: "block" }}
                     />
                   </a>
-                  <div style={{ padding: "10px" }}>
+                  <div style={{ padding: "10px", display: "flex", flexDirection: "column", flex: 1 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
                       <span style={{ fontSize: "0.75rem", textTransform: "uppercase", padding: "2px 8px", borderRadius: "4px", backgroundColor: "#21262d", color: "#58a6ff", fontWeight: "700" }}>
                         {img.category}
@@ -734,6 +1141,103 @@ export default function PCBDetail() {
                       <div style={{ fontSize: "0.72rem", color: "#38bdf8", backgroundColor: "rgba(56, 189, 248, 0.1)", padding: "2px 6px", borderRadius: "4px", border: "1px solid rgba(56, 189, 248, 0.2)" }}>
                         🧪 {matchedTest.test_type}
                       </div>
+                    )}
+
+                    {!pcb.is_archived && !isEditingImage && (
+                      <div style={{ display: "flex", gap: "8px", marginTop: "auto", paddingTop: "10px" }}>
+                        <button
+                          type="button"
+                          onClick={() => startImageEdit(img)}
+                          title="Edit image"
+                          aria-label="Edit image"
+                          style={{ flex: 1, padding: "6px 8px", borderRadius: "4px", border: "1px solid #30363d", background: "#21262d", color: "#c9d1d9", cursor: "pointer" }}
+                        >
+                          <Pencil size={16} aria-label="Edit image" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={deletingImageId === img.id}
+                          onClick={() => handleDeleteImage(img.id)}
+                          title="Delete image"
+                          aria-label="Delete image"
+                          style={{ flex: 1, padding: "6px 8px", borderRadius: "4px", border: "1px solid #7f1d1d", background: "#450a0a", color: "#fecaca", cursor: "pointer" }}
+                        >
+                          {deletingImageId === img.id ? "Deleting..." : <Trash2 size={16} aria-label="Delete image" />}
+                        </button>
+                      </div>
+                    )}
+
+                    {isEditingImage && !pcb.is_archived && (
+                      <form onSubmit={(e) => handleSaveImageEdit(e, img.id)} style={{ display: "grid", gap: "8px", marginTop: "12px" }}>
+                        <label style={{ color: "#8b949e", fontSize: "0.78rem" }}>
+                          Category
+                          <select
+                            value={imageEditForm.category}
+                            onChange={(e) => setImageEditForm((current) => ({ ...current, category: e.target.value }))}
+                            style={{ display: "block", width: "100%", marginTop: "4px", padding: "7px", background: "#161b22", color: "#c9d1d9", border: "1px solid #30363d", borderRadius: "4px" }}
+                          >
+                            <option value="before">Before</option>
+                            <option value="during">During</option>
+                            <option value="after">After</option>
+                            <option value="defect">Defect</option>
+                          </select>
+                        </label>
+
+                        <label style={{ color: "#8b949e", fontSize: "0.78rem" }}>
+                          Technician
+                          <input
+                            value={imageEditForm.technician}
+                            onChange={(e) => setImageEditForm((current) => ({ ...current, technician: e.target.value }))}
+                            maxLength={255}
+                            style={{ display: "block", width: "100%", boxSizing: "border-box", marginTop: "4px", padding: "7px", background: "#161b22", color: "#c9d1d9", border: "1px solid #30363d", borderRadius: "4px" }}
+                          />
+                        </label>
+
+                        <label style={{ color: "#8b949e", fontSize: "0.78rem" }}>
+                          Linked test (optional)
+                          <select
+                            value={imageEditForm.test_id}
+                            onChange={(e) => setImageEditForm((current) => ({ ...current, test_id: e.target.value }))}
+                            style={{ display: "block", width: "100%", marginTop: "4px", padding: "7px", background: "#161b22", color: "#c9d1d9", border: "1px solid #30363d", borderRadius: "4px" }}
+                          >
+                            <option value="">No linked test</option>
+                            {(pcb.tests || []).map((test) => (
+                              <option key={test.id} value={String(test.id)}>
+                                #{test.id} — {test.test_type}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+
+                        <label style={{ color: "#8b949e", fontSize: "0.78rem" }}>
+                          Replacement image (required)
+                          <input
+                            type="file"
+                            accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                            required
+                            onChange={(e) => setImageEditFile(e.target.files?.[0] || null)}
+                            style={{ display: "block", width: "100%", boxSizing: "border-box", marginTop: "4px", color: "#c9d1d9", fontSize: "0.75rem" }}
+                          />
+                        </label>
+
+                        <div style={{ display: "flex", gap: "8px" }}>
+                          <button
+                            type="submit"
+                            disabled={savingImageEdit}
+                            style={{ flex: 1, padding: "7px", borderRadius: "4px", border: "1px solid #166534", background: "#14532d", color: "#dcfce7", cursor: "pointer" }}
+                          >
+                            {savingImageEdit ? "Saving..." : "Save"}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={savingImageEdit}
+                            onClick={cancelImageEdit}
+                            style={{ flex: 1, padding: "7px", borderRadius: "4px", border: "1px solid #30363d", background: "#21262d", color: "#c9d1d9", cursor: "pointer" }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </form>
                     )}
                   </div>
                 </div>

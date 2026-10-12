@@ -20,3 +20,10 @@ class DiagnosisRead(DiagnosisBase):
     diagnosis_date: date
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class DiagnosisUpdate(BaseModel):
+    technician: Optional[str] = None
+    fault_found: Optional[str] = None
+    recommended_action: Optional[str] = None
+    diagnosis_date: Optional[date] = None
