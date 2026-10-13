@@ -100,8 +100,8 @@ export default function ChangePassword() {
         maxWidth: "520px",
         margin: "20px auto",
         padding: "30px",
-        background: "#1e293b",
-        border: "1px solid #334155",
+        background: "var(--app-surface)",
+        border: "1px solid var(--app-surface-muted)",
         borderRadius: "10px",
         boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
       }}
@@ -110,7 +110,7 @@ export default function ChangePassword() {
         <h1
           style={{
             margin: 0,
-            color: "#e2e8f0",
+            color: "var(--app-text)",
             fontSize: "1.7rem",
           }}
         >
@@ -119,7 +119,7 @@ export default function ChangePassword() {
 
         <p
           style={{
-            color: "#94a3b8",
+            color: "var(--app-text-muted)",
             marginTop: "8px",
             lineHeight: "1.5",
           }}
@@ -138,7 +138,7 @@ export default function ChangePassword() {
             borderRadius: "6px",
             background: "rgba(239, 68, 68, 0.12)",
             border: "1px solid rgba(239, 68, 68, 0.4)",
-            color: "#fca5a5",
+            color: "var(--app-error-text)",
           }}
         >
           {error}
@@ -154,7 +154,7 @@ export default function ChangePassword() {
             borderRadius: "6px",
             background: "rgba(34, 197, 94, 0.12)",
             border: "1px solid rgba(34, 197, 94, 0.4)",
-            color: "#86efac",
+            color: "var(--app-success)",
           }}
         >
           {success}
@@ -167,7 +167,7 @@ export default function ChangePassword() {
           style={{
             display: "block",
             marginBottom: "7px",
-            color: "#cbd5e1",
+            color: "var(--app-text)",
             fontWeight: "600",
           }}
         >
@@ -191,7 +191,7 @@ export default function ChangePassword() {
             display: "block",
             marginTop: "18px",
             marginBottom: "7px",
-            color: "#cbd5e1",
+            color: "var(--app-text)",
             fontWeight: "600",
           }}
         >
@@ -227,7 +227,7 @@ export default function ChangePassword() {
             display: "block",
             marginTop: "18px",
             marginBottom: "7px",
-            color: "#cbd5e1",
+            color: "var(--app-text)",
             fontWeight: "600",
           }}
         >
@@ -260,7 +260,7 @@ export default function ChangePassword() {
             style={{
               flex: 1,
               padding: "11px 16px",
-              background: loading ? "#166534" : "#16a34a",
+              background: loading ? "#166534" : "var(--app-button-success)",
               color: "#ffffff",
               border: "none",
               borderRadius: "6px",
@@ -278,9 +278,9 @@ export default function ChangePassword() {
             disabled={loading}
             style={{
               padding: "11px 16px",
-              background: "#334155",
+              background: "var(--app-surface-muted)",
               color: "#ffffff",
-              border: "1px solid #475569",
+              border: "1px solid var(--app-border)",
               borderRadius: "6px",
               fontWeight: "500",
               fontSize: "0.95rem",
@@ -299,9 +299,9 @@ const inputStyle = {
   width: "100%",
   boxSizing: "border-box",
   padding: "11px 12px",
-  background: "#0f172a",
-  color: "#f8fafc",
-  border: "1px solid #475569",
+  background: "var(--app-input-bg)",
+  color: "var(--app-text)",
+  border: "1px solid var(--app-border)",
   borderRadius: "6px",
   fontSize: "0.95rem",
   outline: "none",

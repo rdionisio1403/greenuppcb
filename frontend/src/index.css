@@ -28,30 +28,92 @@
   @media (max-width: 1024px) {
     font-size: 16px;
   }
+  /* Application theme tokens: light mode defaults */
+  --app-bg: #f8fafc;
+  --app-surface: #ffffff;
+  --app-surface-muted: #f1f5f9;
+  --app-text: #1e293b;
+  --app-text-muted: #64748b;
+  --app-border: #dbe3ec;
+  --app-input-bg: #ffffff;
+  --nav-active-text: #14532d;
+  --nav-active-bg: #dcfce7;
+  --nav-text: #475569;
+  --app-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+
+  --app-info: #0369a1;
+  --app-success: #15803d;
+  --app-warning: #a16207;
+  --app-danger: #b91c1c;
+  --app-error-bg: #fef2f2;
+  --app-error-text: #991b1b;
+  --app-error-border: #fecaca;
+  --app-button-success: #15803d;
+  --kpi-gradient-end: rgba(255, 255, 255, 0.94);
+  --app-warning-bg: #fff7ed;
+  --app-warning-border: #fed7aa;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
+:root[data-theme="dark"] {
+    --text: #cbd5e1;
+    --text-h: #f1f5f9;
+    --bg: #111827;
+    --border: #334155;
+    --code-bg: #1e293b;
     --accent: #c084fc;
     --accent-bg: rgba(192, 132, 252, 0.15);
     --accent-border: rgba(192, 132, 252, 0.5);
     --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+    --shadow: rgba(0, 0, 0, 0.4) 0 10px 15px -3px,
+      rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
   }
 
-  #social .button-icon {
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --app-bg: #0f172a;
+    --app-surface: #111827;
+    --app-surface-muted: #1e293b;
+    --app-text: #e2e8f0;
+    --app-text-muted: #94a3b8;
+    --app-border: #334155;
+    --app-input-bg: #0f172a;
+    --nav-active-text: #ffffff;
+    --nav-active-bg: #334155;
+    --nav-text: #cbd5e1;
+    --app-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+
+  --app-info: #38bdf8;
+
+  --app-success: #34d399;
+
+  --app-warning: #fbbf24;
+
+  --app-danger: #f85149;
+
+  --app-error-bg: #450a0a;
+
+  --app-error-text: #fecaca;
+
+  --app-error-border: #7f1d1d;
+
+  --app-button-success: #238636;
+
+  --kpi-gradient-end: rgba(15, 23, 42, 0.6);
+
+  --app-warning-bg: #7c2d12;
+
+  --app-warning-border: #ea580c;
+}
+
+  [data-theme="dark"] #social .button-icon {
     filter: invert(1) brightness(2);
   }
-}
 
 body {
   margin: 0;
+  background: var(--app-bg);
+  color: var(--app-text);
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 #root {

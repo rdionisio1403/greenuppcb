@@ -80,26 +80,26 @@ export default function PCBCreate() {
   const inputStyle = {
     padding: "10px 12px",
     borderRadius: "6px",
-    border: "1px solid #3f444e",
-    backgroundColor: "#1e222b",
-    color: "#f0f2f5",
+    border: "1px solid var(--app-border)",
+    backgroundColor: "var(--app-surface)",
+    color: "var(--app-text)",
     fontSize: "0.95rem"
   };
 
   return (
     <div style={{ maxWidth: "560px", margin: "0 auto", padding: "20px 0" }}>
-      <h3 style={{ fontSize: "1.3rem", marginBottom: "18px", textAlign: "center", color: "#e2e8f0" }}>
+      <h3 style={{ fontSize: "1.3rem", marginBottom: "18px", textAlign: "center", color: "var(--app-text)" }}>
         {reintakeData ? "🔁 Re-Intake PCB Entry (New Service Cycle)" : "Register New PCB Entry"}
       </h3>
 
       {reintakeData && (
-        <div style={{ background: "rgba(234, 88, 12, 0.15)", border: "1px solid #ea580c", color: "#fdba74", padding: "10px 14px", borderRadius: "6px", marginBottom: "15px", fontSize: "0.85rem" }}>
+        <div style={{ background: "rgba(234, 88, 12, 0.15)", border: "1px solid #ea580c", color: "var(--app-warning)", padding: "10px 14px", borderRadius: "6px", marginBottom: "15px", fontSize: "0.85rem" }}>
           Re-intake initiated for serial <strong>{reintakeData.serial_number}</strong>. Reference format generated to prevent collision.
         </div>
       )}
 
       {error && (
-        <div style={{ background: "#7f1d1d", color: "#fecaca", padding: "10px 14px", borderRadius: "6px", marginBottom: "15px", fontSize: "0.9rem" }}>
+        <div style={{ background: "var(--app-error-bg)", color: "var(--app-error-text)", padding: "10px 14px", borderRadius: "6px", marginBottom: "15px", fontSize: "0.9rem" }}>
           {error}
         </div>
       )}
@@ -129,7 +129,7 @@ export default function PCBCreate() {
         style={{ display: "flex", flexDirection: "column", gap: "12px" }}
       >
         <div>
-          <label style={{ fontSize: "0.8rem", color: "#8b949e", display: "block", marginBottom: "4px" }}>Internal Reference *</label>
+          <label style={{ fontSize: "0.8rem", color: "var(--app-text-muted)", display: "block", marginBottom: "4px" }}>Internal Reference *</label>
           <input
             required
             style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
@@ -140,7 +140,7 @@ export default function PCBCreate() {
         </div>
 
         <div>
-          <label style={{ fontSize: "0.8rem", color: "#8b949e", display: "block", marginBottom: "4px" }}>Serial Number *</label>
+          <label style={{ fontSize: "0.8rem", color: "var(--app-text-muted)", display: "block", marginBottom: "4px" }}>Serial Number *</label>
           <input
             required
             style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
@@ -151,7 +151,7 @@ export default function PCBCreate() {
         </div>
 
         <div>
-          <label style={{ fontSize: "0.8rem", color: "#8b949e", display: "block", marginBottom: "4px" }}>
+          <label style={{ fontSize: "0.8rem", color: "var(--app-text-muted)", display: "block", marginBottom: "4px" }}>
             Customer *
           </label>
 
@@ -184,8 +184,8 @@ export default function PCBCreate() {
               marginTop: "8px",
               padding: "7px 11px",
               background: "transparent",
-              color: "#93c5fd",
-              border: "1px solid #475569",
+              color: "var(--app-info)",
+              border: "1px solid var(--app-border)",
               borderRadius: "6px",
               cursor: "pointer",
               fontSize: "0.85rem",
@@ -199,14 +199,14 @@ export default function PCBCreate() {
               style={{
                 marginTop: "12px",
                 padding: "14px",
-                border: "1px solid #334155",
+                border: "1px solid var(--app-surface-muted)",
                 borderRadius: "8px",
-                background: "#151a23",
+                background: "var(--app-surface)",
               }}
             >
               <div
                 style={{
-                  color: "#e2e8f0",
+                  color: "var(--app-text)",
                   fontSize: "0.9rem",
                   fontWeight: "600",
                   marginBottom: "12px",
@@ -291,7 +291,7 @@ export default function PCBCreate() {
                     padding: "9px 12px",
                     background:
                       customerSaving || !customerForm.name.trim()
-                        ? "#334155"
+                        ? "var(--app-surface-muted)"
                         : "#2563eb",
                     color: "#ffffff",
                     border: "none",
@@ -311,7 +311,7 @@ export default function PCBCreate() {
         </div>
 
         <div>
-          <label style={{ fontSize: "0.8rem", color: "#8b949e", display: "block", marginBottom: "4px" }}>Equipment *</label>
+          <label style={{ fontSize: "0.8rem", color: "var(--app-text-muted)", display: "block", marginBottom: "4px" }}>Equipment *</label>
           <input
             required
             style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
@@ -322,7 +322,7 @@ export default function PCBCreate() {
         </div>
 
         <div>
-          <label style={{ fontSize: "0.8rem", color: "#8b949e", display: "block", marginBottom: "4px" }}>Manufacturer</label>
+          <label style={{ fontSize: "0.8rem", color: "var(--app-text-muted)", display: "block", marginBottom: "4px" }}>Manufacturer</label>
           <input
             style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
             placeholder="Manufacturer"
@@ -332,7 +332,7 @@ export default function PCBCreate() {
         </div>
 
         <div>
-          <label style={{ fontSize: "0.8rem", color: "#8b949e", display: "block", marginBottom: "4px" }}>PCB Model</label>
+          <label style={{ fontSize: "0.8rem", color: "var(--app-text-muted)", display: "block", marginBottom: "4px" }}>PCB Model</label>
           <input
             style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
             placeholder="PCB Model"
@@ -342,7 +342,7 @@ export default function PCBCreate() {
         </div>
 
         <div>
-          <label style={{ fontSize: "0.8rem", color: "#8b949e", display: "block", marginBottom: "4px" }}>Received Date *</label>
+          <label style={{ fontSize: "0.8rem", color: "var(--app-text-muted)", display: "block", marginBottom: "4px" }}>Received Date *</label>
           <input
             type="date"
             required
@@ -353,7 +353,7 @@ export default function PCBCreate() {
         </div>
 
         <div>
-          <label style={{ fontSize: "0.8rem", color: "#8b949e", display: "block", marginBottom: "4px" }}>Initial Status</label>
+          <label style={{ fontSize: "0.8rem", color: "var(--app-text-muted)", display: "block", marginBottom: "4px" }}>Initial Status</label>
           <select
             style={{ ...inputStyle, width: "100%", boxSizing: "border-box" }}
             value={formData.status}
@@ -368,7 +368,7 @@ export default function PCBCreate() {
         </div>
 
         <div>
-          <label style={{ fontSize: "0.8rem", color: "#8b949e", display: "block", marginBottom: "4px" }}>Failure Description</label>
+          <label style={{ fontSize: "0.8rem", color: "var(--app-text-muted)", display: "block", marginBottom: "4px" }}>Failure Description</label>
           <textarea
             style={{ ...inputStyle, width: "100%", boxSizing: "border-box", minHeight: "80px", fontFamily: "inherit" }}
             placeholder="Reported Failure / Incoming Fault"
@@ -382,7 +382,7 @@ export default function PCBCreate() {
           disabled={isSubmitting}
           style={{
             padding: "10px",
-            backgroundColor: isSubmitting ? "#166534" : "#22c55e",
+            backgroundColor: isSubmitting ? "#166534" : "var(--app-button-success)",
             color: "#ffffff",
             border: "none",
             borderRadius: "6px",

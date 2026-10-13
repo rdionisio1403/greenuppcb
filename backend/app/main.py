@@ -759,6 +759,24 @@ def view_full_relational_table(db: Session = Depends(get_db), _admin=Depends(req
                 </div>
             </div>
         </div>
+
+        <div id="confirmActionModal" class="modal-backdrop"
+             style="display:none;z-index:1300;" role="alertdialog"
+             aria-modal="true" aria-labelledby="confirmActionTitle"
+             aria-describedby="confirmActionMessage">
+            <div class="modal-box" style="max-width:440px;">
+                <h3 id="confirmActionTitle"
+                    style="margin:0 0 10px;font-size:18px;color:#0f172a;">Confirm action</h3>
+                <p id="confirmActionMessage"
+                   style="margin:0;color:#475569;font-size:14px;line-height:1.6;"></p>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:22px;">
+                    <button type="button" onclick="cancelPendingConfirmation()"
+                        style="padding:8px 14px;border:1px solid #cbd5e1;border-radius:6px;background:#f8fafc;cursor:pointer;">Cancel</button>
+                    <button id="confirmActionButton" type="button" onclick="confirmPendingAction()"
+                        style="padding:8px 14px;border:0;border-radius:6px;background:#0284c7;color:white;font-weight:700;cursor:pointer;">Confirm</button>
+                </div>
+            </div>
+        </div>
     """
 
     js_script = r"""
@@ -856,12 +874,50 @@ def view_full_relational_table(db: Session = Depends(get_db), _admin=Depends(req
                 }
             }
 
-            async function reIntakePcb() {
-                if (!confirm('This action will archive PCB #' + activePcbId + ' and register a brand new PCB intake with a new ID for serial ' + activeSerialNumber + '. Continue?')) {
-                    return;
-                }
+            async function getRecordCsrfToken() {
+                const existingToken = sessionStorage.getItem('csrf_token');
+                if (existingToken) return existingToken;
 
                 try {
+                    const response = await fetch('/auth/csrf-token', {
+                        method: 'GET',
+                        credentials: 'include',
+                        cache: 'no-store',
+                        headers: { 'Accept': 'application/json' }
+                    });
+
+                    if (!response.ok) {
+                        if (response.status === 401) {
+                            alert('Your session has expired. Please sign in again.');
+                        } else {
+                            alert('Could not retrieve the security token. Please refresh and sign in again.');
+                        }
+                        return null;
+                    }
+
+                    const data = await response.json();
+                    if (typeof data.csrf_token !== 'string' || !data.csrf_token) {
+                        alert('The security token response was invalid. Please sign in again.');
+                        return null;
+                    }
+
+                    sessionStorage.setItem('csrf_token', data.csrf_token);
+                    return data.csrf_token;
+                } catch (error) {
+                    alert('Could not retrieve the security token: ' + error.message);
+                    return null;
+                }
+            }
+
+            function reIntakePcb() {
+                showConfirmModal(
+                    'Confirm new PCB intake',
+                    'This action will archive PCB #' + activePcbId +
+                    ' and register a brand new PCB intake with a new ID for serial ' +
+                    activeSerialNumber + '. The original archive will be preserved. Continue?',
+                    'Create New PCB', false,
+                    async () => {
+                        try {
                     const uniqueRef = 'RE-' + (activeSerialNumber !== '-' ? activeSerialNumber : 'PCB') + '-' + Date.now().toString().slice(-5);
                     const todayStr = new Date().toISOString().split('T')[0];
 
@@ -874,11 +930,8 @@ def view_full_relational_table(db: Session = Depends(get_db), _admin=Depends(req
                     };
                     if (activeCustomerId) payload.customer_id = activeCustomerId;
 
-                    const csrfToken = sessionStorage.getItem('csrf_token');
-                    if (!csrfToken) {
-                        alert('Your security token is missing. Please sign in again and retry.');
-                        return;
-                    }
+                    const csrfToken = await getRecordCsrfToken();
+                    if (!csrfToken) return;
 
                     const res = await fetch('/pcbs', {
                         method: 'POST',
@@ -892,9 +945,15 @@ def view_full_relational_table(db: Session = Depends(get_db), _admin=Depends(req
 
                     if (res.ok) {
                         const newPcb = await res.json();
-                        alert('Success! New PCB intake created with ID #' + newPcb.id + ' (Ref: ' + uniqueRef + '). The original record remains preserved as an immutable archive.');
-                        closeManageModal();
-                        window.location.reload();
+                        showInfoModal(
+                            'Success',
+                            'New PCB intake created with ID #' + newPcb.id + ' (Ref: ' + uniqueRef + '). The original record remains preserved as an immutable archive.',
+                            'OK',
+                            () => {
+                                closeManageModal();
+                                window.location.reload();
+                            }
+                        );
                     } else {
                         const err = await res.json();
                         let errorMsg = 'Unknown error';
@@ -905,9 +964,11 @@ def view_full_relational_table(db: Session = Depends(get_db), _admin=Depends(req
                         }
                         alert('Could not create new intake: ' + errorMsg);
                     }
-                } catch (e) {
-                    alert('Network error: ' + e.message);
-                }
+                        } catch (e) {
+                            alert('Network error: ' + e.message);
+                        }
+                    }
+                );
             }
 
             async function submitNewTest() {
@@ -1019,12 +1080,10 @@ def view_full_relational_table(db: Session = Depends(get_db), _admin=Depends(req
                 activeRecord = null;
             }
 
-            function getRecordCsrfHeaders() {
-                const token = sessionStorage.getItem('csrf_token');
-                if (!token) {
-                    alert('Your security token is missing. Please sign in again and retry.');
-                    return null;
-                }
+            async function getRecordCsrfHeaders() {
+                const token = await getRecordCsrfToken();
+                if (!token) return null;
+
                 return {
                     'Content-Type': 'application/json',
                     'X-CSRF-Token': token
@@ -1040,10 +1099,89 @@ def view_full_relational_table(db: Session = Depends(get_db), _admin=Depends(req
                 }
             }
 
-            async function saveRecordEdit() {
+
+            let pendingConfirmationAction = null;
+
+            function showConfirmModal(title, message, confirmText, danger, action) {
+                document.getElementById('confirmActionTitle').innerText = title;
+                document.getElementById('confirmActionMessage').innerText = message;
+                const button = document.getElementById('confirmActionButton');
+                button.innerText = confirmText;
+                button.style.background = danger ? '#dc2626' : '#0284c7';
+                button.disabled = false;
+                pendingConfirmationAction = action;
+                document.getElementById('confirmActionModal').style.display = 'flex';
+            }
+
+            function showInfoModal(title, message, buttonText, onOk) {
+                document.getElementById('confirmActionTitle').innerText = title;
+                document.getElementById('confirmActionMessage').innerText = message;
+
+                const modal = document.getElementById('confirmActionModal');
+                const cancelButton = modal.querySelector('button[onclick="cancelPendingConfirmation()"]');
+                const confirmButton = document.getElementById('confirmActionButton');
+
+                cancelButton.style.display = 'none';
+                confirmButton.innerText = buttonText;
+                confirmButton.style.background = '#0284c7';
+                confirmButton.disabled = false;
+
+                pendingConfirmationAction = async () => {
+                    try {
+                        if (onOk) await onOk();
+                    } finally {
+                        cancelButton.style.display = '';
+                    }
+                };
+
+                modal.style.display = 'flex';
+            }
+
+            function cancelPendingConfirmation() {
+                pendingConfirmationAction = null;
+                document.getElementById('confirmActionModal').style.display = 'none';
+            }
+
+            async function confirmPendingAction() {
+                if (!pendingConfirmationAction) return;
+                const action = pendingConfirmationAction;
+                pendingConfirmationAction = null;
+                const button = document.getElementById('confirmActionButton');
+                button.disabled = true;
+                button.innerText = 'Please wait...';
+                try {
+                    await action();
+                } finally {
+                    // Keep the modal open if the action displayed a follow-up modal.
+                    if (!pendingConfirmationAction) {
+                        document.getElementById('confirmActionModal').style.display = 'none';
+                    }
+                    button.disabled = false;
+                }
+            }
+
+            function saveRecordEdit() {
+                if (!activeRecord) return;
+                const date = document.getElementById('recordEditDate').value;
+                const technician = document.getElementById('recordEditTechnician').value.trim();
+                const fieldOne = document.getElementById('recordEditFieldOne').value;
+                if (!date || !technician || !fieldOne.trim()) {
+                    alert('Date, technician, and the main details field are required.');
+                    return;
+                }
+                const label = activeRecord.type === 'diagnosis' ? 'diagnosis' : 'repair';
+                showConfirmModal(
+                    'Confirm changes',
+                    'Save changes to ' + label + ' record #' + activeRecord.id +
+                    ' for PCB #' + activeRecord.pcbId + '?',
+                    'Save Changes', false, performSaveRecordEdit
+                );
+            }
+
+            async function performSaveRecordEdit() {
                 if (!activeRecord) return;
 
-                const headers = getRecordCsrfHeaders();
+                const headers = await getRecordCsrfHeaders();
                 if (!headers) return;
 
                 const date = document.getElementById('recordEditDate').value;
@@ -1097,42 +1235,42 @@ def view_full_relational_table(db: Session = Depends(get_db), _admin=Depends(req
                 }
             }
 
-            async function deleteRecord(button) {
+            function deleteRecord(button) {
                 const data = button.dataset;
                 const isDiagnosis = data.recordType === 'diagnosis';
                 const recordLabel = isDiagnosis ? 'diagnosis' : 'repair';
 
-                if (!confirm(
+                showConfirmModal(
+                    'Delete record?',
                     'Delete ' + recordLabel + ' record #' + data.recordId +
-                    ' from PCB #' + data.pcbId + '? This cannot be undone.'
-                )) return;
+                    ' from PCB #' + data.pcbId + '? This cannot be undone.',
+                    'Delete', true,
+                    async () => {
+                        const token = await getRecordCsrfToken();
+                        if (!token) return;
 
-                const token = sessionStorage.getItem('csrf_token');
-                if (!token) {
-                    alert('Your security token is missing. Please sign in again and retry.');
-                    return;
-                }
+                        const endpoint = '/pcbs/' + data.pcbId + '/' +
+                            (isDiagnosis ? 'diagnoses' : 'repairs') + '/' + data.recordId;
+                        button.disabled = true;
 
-                const endpoint = '/pcbs/' + data.pcbId + '/' +
-                    (isDiagnosis ? 'diagnoses' : 'repairs') + '/' + data.recordId;
-                button.disabled = true;
+                        try {
+                            const response = await fetch(endpoint, {
+                                method: 'DELETE',
+                                credentials: 'include',
+                                headers: { 'X-CSRF-Token': token }
+                            });
 
-                try {
-                    const response = await fetch(endpoint, {
-                        method: 'DELETE',
-                        credentials: 'include',
-                        headers: { 'X-CSRF-Token': token }
-                    });
+                            if (!response.ok) {
+                                throw new Error(await getRecordError(response));
+                            }
 
-                    if (!response.ok) {
-                        throw new Error(await getRecordError(response));
+                            window.location.reload();
+                        } catch (error) {
+                            alert('Could not delete the record: ' + error.message);
+                            button.disabled = false;
+                        }
                     }
-
-                    window.location.reload();
-                } catch (error) {
-                    alert('Could not delete the record: ' + error.message);
-                    button.disabled = false;
-                }
+                );
             }
 
             // --- Live Search & Pagination Engine ---

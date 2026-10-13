@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { apiFetch } from "../api/apiFetch";
 import { Navigate, useOutletContext } from "react-router-dom";
+import ConfirmModal from "../components/ConfirmModal";
 
 export default function UserManagement() {
   const { user: currentUser } = useOutletContext();
@@ -11,6 +12,7 @@ export default function UserManagement() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
   const [error, setError] = useState("");
+  const [pendingConfirmation, setPendingConfirmation] = useState(null);
 
   const loadUsers = async () => {
     setError("");
@@ -40,11 +42,16 @@ export default function UserManagement() {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const handleDisable = async (userId) => {
-    if (!window.confirm("Are you sure you want to disable this user?")) {
-      return;
-    }
+  const handleDisable = (userId) => {
+    setPendingConfirmation({
+      title: "Disable user?",
+      message: "This user will be disabled and may lose access to the system.",
+      confirmText: "Disable user",
+      onConfirm: () => performDisable(userId),
+    });
+  };
 
+  const performDisable = async (userId) => {
     setActionLoading(`disable-${userId}`);
     setError("");
 
@@ -98,11 +105,16 @@ export default function UserManagement() {
     }
   };
 
-  const handleRevokeSession = async (userId, sessionId) => {
-    if (!window.confirm("Revoke this session?")) {
-      return;
-    }
+  const handleRevokeSession = (userId, sessionId) => {
+    setPendingConfirmation({
+      title: "Revoke session?",
+      message: "This will terminate the selected active session.",
+      confirmText: "Revoke session",
+      onConfirm: () => performRevokeSession(userId, sessionId),
+    });
+  };
 
+  const performRevokeSession = async (userId, sessionId) => {
     setActionLoading(`revoke-${sessionId}`);
     setError("");
 
@@ -133,11 +145,16 @@ export default function UserManagement() {
     }
   };
 
-  const handleRevokeAll = async (userId) => {
-    if (!window.confirm("Revoke all active sessions for this user?")) {
-      return;
-    }
+  const handleRevokeAll = (userId) => {
+    setPendingConfirmation({
+      title: "Revoke all sessions?",
+      message: "All active sessions for this user will be terminated.",
+      confirmText: "Revoke all sessions",
+      onConfirm: () => performRevokeAll(userId),
+    });
+  };
 
+  const performRevokeAll = async (userId) => {
     setActionLoading(`revoke-all-${userId}`);
     setError("");
 
@@ -188,7 +205,7 @@ export default function UserManagement() {
           <h1
             style={{
               margin: "0 0 8px 0",
-              color: "#e2e8f0",
+              color: "var(--app-text)",
               fontSize: "1.6rem",
               fontWeight: "700",
               textAlign: "left",
@@ -198,7 +215,7 @@ export default function UserManagement() {
           </h1>
           <p
             style={{
-              color: "#94a3b8",
+              color: "var(--app-text-muted)",
               margin: 0,
               fontSize: "0.9rem",
             }}
@@ -212,9 +229,9 @@ export default function UserManagement() {
           onClick={loadUsers}
           style={{
             padding: "9px 14px",
-            background: "#334155",
+            background: "var(--app-surface-muted)",
             color: "#ffffff",
-            border: "1px solid #475569",
+            border: "1px solid var(--app-border)",
             borderRadius: "6px",
             cursor: "pointer",
           }}
@@ -231,7 +248,7 @@ export default function UserManagement() {
             borderRadius: "6px",
             background: "rgba(239, 68, 68, 0.12)",
             border: "1px solid rgba(239, 68, 68, 0.4)",
-            color: "#fca5a5",
+            color: "var(--app-error-text)",
           }}
         >
           {error}
@@ -241,9 +258,9 @@ export default function UserManagement() {
       <div
         style={{
           overflowX: "auto",
-          background: "#1e293b",
+          background: "var(--app-surface)",
           borderRadius: "8px",
-          border: "1px solid #334155",
+          border: "1px solid var(--app-surface-muted)",
         }}
       >
         <table
@@ -254,7 +271,7 @@ export default function UserManagement() {
           }}
         >
           <thead>
-            <tr style={{ background: "#0f172a" }}>
+            <tr style={{ background: "var(--app-input-bg)" }}>
               <th style={headerStyle}>ID</th>
               <th style={headerStyle}>Username</th>
               <th style={headerStyle}>Email</th>
@@ -280,7 +297,7 @@ export default function UserManagement() {
                     <td style={cellStyle}>
                       <span
                         style={{
-                          color: user.is_active ? "#4ade80" : "#f87171",
+                          color: user.is_active ? "var(--app-success)" : "var(--app-danger)",
                           fontWeight: "600",
                         }}
                       >
@@ -330,8 +347,8 @@ export default function UserManagement() {
                         colSpan="6"
                         style={{
                           padding: "18px",
-                          background: "#0f172a",
-                          borderTop: "1px solid #334155",
+                          background: "var(--app-input-bg)",
+                          borderTop: "1px solid var(--app-surface-muted)",
                         }}
                       >
                         <div
@@ -344,7 +361,7 @@ export default function UserManagement() {
                             flexWrap: "wrap",
                           }}
                         >
-                          <strong style={{ color: "#e2e8f0" }}>
+                          <strong style={{ color: "var(--app-text)" }}>
                             Active Sessions
                           </strong>
 
@@ -367,7 +384,7 @@ export default function UserManagement() {
                         </div>
 
                         {userSessions.length === 0 ? (
-                          <div style={{ color: "#94a3b8" }}>
+                          <div style={{ color: "var(--app-text-muted)" }}>
                             No active sessions.
                           </div>
                         ) : (
@@ -441,6 +458,20 @@ export default function UserManagement() {
           </tbody>
         </table>
       </div>
+      <ConfirmModal
+        open={Boolean(pendingConfirmation)}
+        title={pendingConfirmation?.title}
+        message={pendingConfirmation?.message}
+        confirmText={pendingConfirmation?.confirmText || "Confirm"}
+        loading={Boolean(actionLoading)}
+        onCancel={() => setPendingConfirmation(null)}
+        onConfirm={async () => {
+          const confirmation = pendingConfirmation;
+          if (!confirmation) return;
+          await confirmation.onConfirm();
+          setPendingConfirmation(null);
+        }}
+      />
     </div>
   );
 }
@@ -448,33 +479,33 @@ export default function UserManagement() {
 const headerStyle = {
   padding: "12px 14px",
   textAlign: "left",
-  color: "#94a3b8",
+  color: "var(--app-text-muted)",
   fontSize: "0.85rem",
   fontWeight: "600",
-  borderBottom: "1px solid #334155",
+  borderBottom: "1px solid var(--app-surface-muted)",
 };
 
 const cellStyle = {
   padding: "12px 14px",
-  color: "#e2e8f0",
-  borderBottom: "1px solid #334155",
+  color: "var(--app-text)",
+  borderBottom: "1px solid var(--app-surface-muted)",
   verticalAlign: "top",
 };
 
 const secondaryButtonStyle = {
   padding: "7px 10px",
-  background: "#334155",
-  color: "#ffffff",
-  border: "1px solid #475569",
+  background: "var(--app-surface-muted)",
+  color: "var(--app-text)",
+  border: "1px solid var(--app-border)",
   borderRadius: "5px",
   cursor: "pointer",
 };
 
 const dangerButtonStyle = {
   padding: "7px 10px",
-  background: "#991b1b",
+  background: "var(--app-danger)",
   color: "#ffffff",
-  border: "1px solid #b91c1c",
+  border: "1px solid var(--app-danger)",
   borderRadius: "5px",
   cursor: "pointer",
 };

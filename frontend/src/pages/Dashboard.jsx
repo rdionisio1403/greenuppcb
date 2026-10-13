@@ -33,7 +33,7 @@ export default function Dashboard() {
         style={{
           textAlign: "center",
           padding: "80px 0",
-          color: "#38bdf8",
+          color: "var(--app-info)",
           fontSize: "1.1rem"
         }}
       >
@@ -48,9 +48,9 @@ export default function Dashboard() {
         style={{
           maxWidth: "1200px",
           margin: "40px auto",
-          backgroundColor: "#450a0a",
-          border: "1px solid #7f1d1d",
-          color: "#fecaca",
+          backgroundColor: "var(--app-error-bg)",
+          border: "1px solid var(--app-error-border)",
+          color: "var(--app-error-text)",
           padding: "16px",
           borderRadius: "8px",
           textAlign: "center"
@@ -68,9 +68,9 @@ export default function Dashboard() {
       sub: `${data.pcbs_this_month} logged this month`,
       icon: "📦",
       gradient:
-        "linear-gradient(135deg, rgba(14, 165, 233, 0.15) 0%, rgba(15, 23, 42, 0.6) 100%)",
+        "linear-gradient(135deg, rgba(14, 165, 233, 0.15) 0%, var(--kpi-gradient-end) 100%)",
       border: "#0ea5e9",
-      accent: "#38bdf8"
+      accent: "var(--app-info)"
     },
     {
       title: "Diagnostic & Repairs",
@@ -78,9 +78,9 @@ export default function Dashboard() {
       sub: "Active rework actions",
       icon: "🔧",
       gradient:
-        "linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, rgba(15, 23, 42, 0.6) 100%)",
+        "linear-gradient(135deg, rgba(245, 158, 11, 0.15) 0%, var(--kpi-gradient-end) 100%)",
       border: "#f59e0b",
-      accent: "#fbbf24"
+      accent: "var(--app-warning)"
     },
     {
       title: "Quality Pass Rate",
@@ -88,9 +88,9 @@ export default function Dashboard() {
       sub: `${data.tests_passed ?? 0} Pass / ${data.tests_failed ?? 0} Fail`,
       icon: "🎯",
       gradient:
-        "linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(15, 23, 42, 0.6) 100%)",
+        "linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, var(--kpi-gradient-end) 100%)",
       border: "#10b981",
-      accent: "#34d399"
+      accent: "var(--app-success)"
     },
     {
       title: "Tests Executed",
@@ -98,7 +98,7 @@ export default function Dashboard() {
       sub: "Electrical & functional tests",
       icon: "⚡",
       gradient:
-        "linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, rgba(15, 23, 42, 0.6) 100%)",
+        "linear-gradient(135deg, rgba(168, 85, 247, 0.15) 0%, var(--kpi-gradient-end) 100%)",
       border: "#a855f7",
       accent: "#c084fc"
     },
@@ -108,7 +108,7 @@ export default function Dashboard() {
       sub: "System accounts",
       icon: "👤",
       gradient:
-        "linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(15, 23, 42, 0.6) 100%)",
+        "linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, var(--kpi-gradient-end) 100%)",
       border: "#3b82f6",
       accent: "#60a5fa"
     }
@@ -118,35 +118,35 @@ export default function Dashboard() {
     {
       label: "Registered",
       count: data.received ?? 0,
-      color: "#38bdf8",
+      color: "var(--app-info)",
       bg: "rgba(56, 189, 248, 0.12)",
       border: "rgba(56, 189, 248, 0.3)"
     },
     {
       label: "In Diagnosis",
       count: data.in_diagnosis ?? 0,
-      color: "#38bdf8",
+      color: "var(--app-info)",
       bg: "rgba(56, 189, 248, 0.12)",
       border: "rgba(56, 189, 248, 0.3)"
     },
     {
       label: "Repaired",
       count: data.repaired ?? 0,
-      color: "#34d399",
+      color: "var(--app-success)",
       bg: "rgba(52, 211, 153, 0.12)",
       border: "rgba(52, 211, 153, 0.3)"
     },
     {
       label: "Testing",
       count: data.testing ?? 0,
-      color: "#fbbf24",
+      color: "var(--app-warning)",
       bg: "rgba(251, 191, 36, 0.12)",
       border: "rgba(251, 191, 36, 0.3)"
     },
     {
       label: "Completed",
       count: data.completed ?? 0,
-      color: "#4ade80",
+      color: "var(--app-success)",
       bg: "rgba(74, 222, 128, 0.12)",
       border: "rgba(74, 222, 128, 0.3)"
     },
@@ -166,7 +166,7 @@ export default function Dashboard() {
         maxWidth: "1400px",
         margin: "0 auto",
         padding: "28px 20px",
-        color: "#e6edf3",
+        color: "var(--app-text)",
         fontFamily: "Segoe UI, -apple-system, sans-serif"
       }}
     >
@@ -188,7 +188,7 @@ export default function Dashboard() {
                 margin: 0,
                 fontSize: "1.75rem",
                 fontWeight: "700",
-                color: "#f8fafc",
+                color: "var(--app-text)",
                 letterSpacing: "-0.5px"
               }}
             >
@@ -197,7 +197,7 @@ export default function Dashboard() {
             <span
               style={{
                 backgroundColor: "rgba(34, 197, 94, 0.15)",
-                color: "#4ade80",
+                color: "var(--app-success)",
                 border: "1px solid rgba(34, 197, 94, 0.3)",
                 padding: "2px 10px",
                 borderRadius: "12px",
@@ -212,7 +212,7 @@ export default function Dashboard() {
           <p
             style={{
               margin: "6px 0 0 0",
-              color: "#94a3b8",
+              color: "var(--app-text-muted)",
               fontSize: "0.92rem"
             }}
           >
@@ -252,7 +252,7 @@ export default function Dashboard() {
               <span
                 style={{
                   fontSize: "0.82rem",
-                  color: "#94a3b8",
+                  color: "var(--app-text-muted)",
                   fontWeight: "700",
                   textTransform: "uppercase",
                   letterSpacing: "0.5px"
@@ -276,7 +276,7 @@ export default function Dashboard() {
               {kpi.value}
             </div>
 
-            <div style={{ fontSize: "0.8rem", color: "#64748b" }}>
+            <div style={{ fontSize: "0.8rem", color: "var(--app-text-muted)" }}>
               {kpi.sub}
             </div>
           </div>
@@ -295,8 +295,8 @@ export default function Dashboard() {
         {/* Quality Test Yield Widget */}
         <div
           style={{
-            backgroundColor: "#161b22",
-            border: "1px solid #30363d",
+            backgroundColor: "var(--app-surface)",
+            border: "1px solid var(--app-border)",
             borderRadius: "10px",
             padding: "22px",
             boxShadow: "0 4px 16px rgba(0,0,0,0.25)"
@@ -315,7 +315,7 @@ export default function Dashboard() {
                 margin: 0,
                 fontSize: "1.05rem",
                 fontWeight: "700",
-                color: "#f0f6fc",
+                color: "var(--app-text)",
                 display: "flex",
                 alignItems: "center",
                 gap: "8px"
@@ -327,7 +327,7 @@ export default function Dashboard() {
             <span
               style={{
                 fontSize: "0.8rem",
-                color: "#34d399",
+                color: "var(--app-success)",
                 fontWeight: "700"
               }}
             >
@@ -339,7 +339,7 @@ export default function Dashboard() {
             style={{
               margin: "0 0 16px 0",
               fontSize: "0.85rem",
-              color: "#8b949e"
+              color: "var(--app-text-muted)"
             }}
           >
             First-pass test ratio across all diagnostic and post-repair
@@ -350,7 +350,7 @@ export default function Dashboard() {
             style={{
               height: "14px",
               width: "100%",
-              backgroundColor: "#21262d",
+              backgroundColor: "var(--app-surface-muted)",
               borderRadius: "8px",
               overflow: "hidden",
               display: "flex",
@@ -360,7 +360,7 @@ export default function Dashboard() {
             <div
               style={{
                 width: `${data.pass_rate ?? 100}%`,
-                backgroundColor: "#238636",
+                backgroundColor: "var(--app-button-success)",
                 transition: "width 0.6s ease"
               }}
             />
@@ -378,7 +378,7 @@ export default function Dashboard() {
               display: "flex",
               justifyContent: "space-between",
               fontSize: "0.85rem",
-              color: "#8b949e"
+              color: "var(--app-text-muted)"
             }}
           >
             <div
@@ -393,13 +393,13 @@ export default function Dashboard() {
                   width: "10px",
                   height: "10px",
                   borderRadius: "50%",
-                  backgroundColor: "#238636",
+                  backgroundColor: "var(--app-button-success)",
                   display: "inline-block"
                 }}
               />
 
               Passed:{" "}
-              <strong style={{ color: "#3fb950" }}>
+              <strong style={{ color: "var(--app-success)" }}>
                 {data.tests_passed ?? 0}
               </strong>
             </div>
@@ -422,7 +422,7 @@ export default function Dashboard() {
               />
 
               Failed:{" "}
-              <strong style={{ color: "#f85149" }}>
+              <strong style={{ color: "var(--app-danger)" }}>
                 {data.tests_failed ?? 0}
               </strong>
             </div>
@@ -432,8 +432,8 @@ export default function Dashboard() {
         {/* Operational Status Breakdown */}
         <div
           style={{
-            backgroundColor: "#161b22",
-            border: "1px solid #30363d",
+            backgroundColor: "var(--app-surface)",
+            border: "1px solid var(--app-border)",
             borderRadius: "10px",
             padding: "22px",
             boxShadow: "0 4px 16px rgba(0,0,0,0.25)"
@@ -452,7 +452,7 @@ export default function Dashboard() {
                 margin: 0,
                 fontSize: "1.05rem",
                 fontWeight: "700",
-                color: "#f0f6fc",
+                color: "var(--app-text)",
                 display: "flex",
                 alignItems: "center",
                 gap: "8px"
@@ -461,7 +461,7 @@ export default function Dashboard() {
               <span>📊</span> Lifecycle Distribution
             </h3>
 
-            <span style={{ fontSize: "0.8rem", color: "#8b949e" }}>
+            <span style={{ fontSize: "0.8rem", color: "var(--app-text-muted)" }}>
               Live status partitions
             </span>
           </div>
@@ -477,7 +477,7 @@ export default function Dashboard() {
               <div
                 key={idx}
                 style={{
-                  backgroundColor: "#0d1117",
+                  backgroundColor: "var(--app-bg)",
                   border: `1px solid ${st.border}`,
                   borderRadius: "8px",
                   padding: "14px 10px",
@@ -502,7 +502,7 @@ export default function Dashboard() {
                   style={{
                     fontSize: "1.6rem",
                     fontWeight: "800",
-                    color: "#f0f6fc",
+                    color: "var(--app-text)",
                     marginTop: "8px"
                   }}
                 >
@@ -517,8 +517,8 @@ export default function Dashboard() {
       {/* Live Work In Progress Queue */}
       <div
         style={{
-          backgroundColor: "#161b22",
-          border: "1px solid #30363d",
+          backgroundColor: "var(--app-surface)",
+          border: "1px solid var(--app-border)",
           borderRadius: "10px",
           padding: "22px",
           boxShadow: "0 4px 16px rgba(0,0,0,0.25)"
@@ -547,7 +547,7 @@ export default function Dashboard() {
                   margin: 0,
                   fontSize: "1.1rem",
                   fontWeight: "700",
-                  color: "#f0f6fc",
+                  color: "var(--app-text)",
                   display: "flex",
                   alignItems: "center",
                   gap: "8px"
@@ -559,7 +559,7 @@ export default function Dashboard() {
               <span
                 style={{
                   backgroundColor: "rgba(56, 189, 248, 0.15)",
-                  color: "#38bdf8",
+                  color: "var(--app-info)",
                   border: "1px solid rgba(56, 189, 248, 0.3)",
                   padding: "2px 8px",
                   borderRadius: "10px",
@@ -575,7 +575,7 @@ export default function Dashboard() {
             <span
               style={{
                 fontSize: "0.82rem",
-                color: "#8b949e",
+                color: "var(--app-text-muted)",
                 marginTop: "4px",
                 display: "inline-block"
               }}
@@ -587,7 +587,7 @@ export default function Dashboard() {
           <Link
             to="/"
             style={{
-              color: "#58a6ff",
+              color: "var(--app-info)",
               fontSize: "0.85rem",
               textDecoration: "none",
               fontWeight: "600"
@@ -600,7 +600,7 @@ export default function Dashboard() {
         {(!data.recent_pcbs || data.recent_pcbs.length === 0) ? (
           <p
             style={{
-              color: "#6e7681",
+              color: "var(--app-text-muted)",
               fontSize: "0.9rem",
               margin: 0
             }}
@@ -620,8 +620,8 @@ export default function Dashboard() {
               <thead>
                 <tr
                   style={{
-                    borderBottom: "1px solid #30363d",
-                    color: "#8b949e",
+                    borderBottom: "1px solid var(--app-border)",
+                    color: "var(--app-text-muted)",
                     fontSize: "0.78rem",
                     textTransform: "uppercase"
                   }}
@@ -641,23 +641,23 @@ export default function Dashboard() {
                 {data.recent_pcbs.map((p) => (
                   <tr
                     key={p.id}
-                    style={{ borderBottom: "1px solid #21262d" }}
+                    style={{ borderBottom: "1px solid var(--app-surface-muted)" }}
                   >
                     <td
                       style={{
                         padding: "12px",
                         fontWeight: "700",
-                        color: "#58a6ff"
+                        color: "var(--app-info)"
                       }}
                     >
                       {p.internal_reference}
                     </td>
 
-                    <td style={{ padding: "12px", color: "#cbd5e1" }}>
+                    <td style={{ padding: "12px", color: "var(--app-text)" }}>
                       {p.serial_number || "—"}
                     </td>
 
-                    <td style={{ padding: "12px", color: "#cbd5e1" }}>
+                    <td style={{ padding: "12px", color: "var(--app-text)" }}>
                       {p.equipment || "—"}
                     </td>
 
@@ -673,7 +673,7 @@ export default function Dashboard() {
                               ? "rgba(234, 88, 12, 0.2)"
                               : "rgba(56, 189, 248, 0.15)",
                           color:
-                            p.status === "ARCHIVED" ? "#fb923c" : "#38bdf8",
+                            p.status === "ARCHIVED" ? "#fb923c" : "var(--app-info)",
                           border:
                             p.status === "ARCHIVED"
                               ? "1px solid rgba(234, 88, 12, 0.4)"
@@ -687,7 +687,7 @@ export default function Dashboard() {
                     <td
                       style={{
                         padding: "12px",
-                        color: "#8b949e",
+                        color: "var(--app-text-muted)",
                         fontSize: "0.82rem"
                       }}
                     >
@@ -704,9 +704,9 @@ export default function Dashboard() {
                         to={`/pcb/${p.id}`}
                         style={{
                           padding: "4px 10px",
-                          backgroundColor: "#21262d",
-                          color: "#58a6ff",
-                          border: "1px solid #30363d",
+                          backgroundColor: "var(--app-surface-muted)",
+                          color: "var(--app-info)",
+                          border: "1px solid var(--app-border)",
                           borderRadius: "5px",
                           textDecoration: "none",
                           fontSize: "0.78rem",

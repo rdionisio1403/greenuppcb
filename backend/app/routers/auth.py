@@ -431,6 +431,34 @@ def confirm_password_reset(
     }
 
 
+@router.get("/csrf-token")
+def get_csrf_token(
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    session_id = request.cookies.get(SESSION_COOKIE_NAME)
+    user_session = (
+        db.query(UserSession)
+        .filter(
+            UserSession.session_id == session_id,
+            UserSession.user_id == current_user.id,
+        )
+        .first()
+    )
+
+    if user_session is None or not user_session.csrf_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Session token unavailable. Please sign in again.",
+        )
+
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    return {"csrf_token": user_session.csrf_token}
+
+
 @router.get("/me", response_model=UserResponse)
 def get_me(current_user: User = Depends(get_current_user)):
     return current_user

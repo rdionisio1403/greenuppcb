@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 export default function Login() {
@@ -9,6 +9,18 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [theme, setTheme] = useState(() => {
+    const savedTheme = localStorage.getItem("greenupcb-theme");
+    if (savedTheme === "light" || savedTheme === "dark") return savedTheme;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("greenupcb-theme", theme);
+  }, [theme]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -49,31 +61,55 @@ export default function Login() {
     <div
       style={{
         minHeight: "100vh",
+        position: "relative",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "#0f172a",
+        background: "var(--app-bg)",
         padding: "20px",
         fontFamily: "Segoe UI, Tahoma, Geneva, Verdana, sans-serif",
       }}
     >
-      <div
+
+      <div style={{ position: "absolute", top: "20px", right: "20px", display: "flex", justifyContent: "flex-end" }}>
+<button
+        type="button"
+        onClick={() =>
+          setTheme((current) => current === "dark" ? "light" : "dark")
+        }
+        aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+        style={{
+          padding: "8px 12px",
+          border: "1px solid var(--app-border)",
+          borderRadius: "8px",
+          background: "var(--app-surface)",
+          color: "var(--app-text)",
+          cursor: "pointer",
+          fontWeight: 600
+        }}
+      >
+        {theme === "dark" ? "☀️ Light mode" : "🌙 Dark mode"}
+      </button>
+      </div>
+
+<div
         style={{
           width: "100%",
           maxWidth: "420px",
-          background: "#1e293b",
+          background: "var(--app-surface)",
           padding: "35px",
           borderRadius: "12px",
-          boxShadow: "0 10px 30px rgba(0,0,0,0.3)",
+          boxShadow: "var(--app-shadow)",
+          border: "1px solid var(--app-border)",
         }}
       >
         <div style={{ textAlign: "center", marginBottom: "30px" }}>
           <div style={{ fontSize: "2.5rem", marginBottom: "10px" }}>🌱</div>
 
-          <h1
+<h1
             style={{
               margin: 0,
-              color: "#4ade80",
+              color: "var(--app-success)",
               fontSize: "1.8rem",
             }}
           >
@@ -82,7 +118,7 @@ export default function Login() {
 
           <p
             style={{
-              color: "#94a3b8",
+              color: "var(--app-text-muted)",
               marginTop: "8px",
               marginBottom: "20px",
             }}
@@ -94,7 +130,7 @@ export default function Login() {
             style={{
               display: "flex",
               gap: "8px",
-              background: "#0f172a",
+              background: "var(--app-surface-muted)",
               padding: "5px",
               borderRadius: "8px",
             }}
@@ -110,8 +146,8 @@ export default function Login() {
                 padding: "10px",
                 border: "none",
                 borderRadius: "6px",
-                background: role === "user" ? "#16a34a" : "transparent",
-                color: "#ffffff",
+                background: role === "user" ? "var(--app-button-success)" : "transparent",
+                color: (role === "user" ? "#ffffff" : "var(--app-text)"),
                 fontWeight: "600",
                 cursor: "pointer",
               }}
@@ -130,8 +166,8 @@ export default function Login() {
                 padding: "10px",
                 border: "none",
                 borderRadius: "6px",
-                background: role === "admin" ? "#16a34a" : "transparent",
-                color: "#ffffff",
+                background: role === "admin" ? "var(--app-button-success)" : "transparent",
+                color: (role === "admin" ? "#ffffff" : "var(--app-text)"),
                 fontWeight: "600",
                 cursor: "pointer",
               }}
@@ -146,7 +182,7 @@ export default function Login() {
             <label
               style={{
                 display: "block",
-                color: "#e2e8f0",
+                color: "var(--app-text)",
                 marginBottom: "7px",
                 fontWeight: "600",
               }}
@@ -165,9 +201,9 @@ export default function Login() {
                 boxSizing: "border-box",
                 padding: "11px 12px",
                 borderRadius: "6px",
-                border: "1px solid #475569",
-                background: "#0f172a",
-                color: "#ffffff",
+                border: "1px solid var(--app-border)",
+                background: "var(--app-input-bg)",
+                color: "var(--app-text)",
                 fontSize: "1rem",
               }}
             />
@@ -177,7 +213,7 @@ export default function Login() {
             <label
               style={{
                 display: "block",
-                color: "#e2e8f0",
+                color: "var(--app-text)",
                 marginBottom: "7px",
                 fontWeight: "600",
               }}
@@ -196,9 +232,9 @@ export default function Login() {
                 boxSizing: "border-box",
                 padding: "11px 12px",
                 borderRadius: "6px",
-                border: "1px solid #475569",
-                background: "#0f172a",
-                color: "#ffffff",
+                border: "1px solid var(--app-border)",
+                background: "var(--app-input-bg)",
+                color: "var(--app-text)",
                 fontSize: "1rem",
               }}
             />
@@ -211,8 +247,8 @@ export default function Login() {
                 padding: "10px 12px",
                 borderRadius: "6px",
                 background: "rgba(239, 68, 68, 0.12)",
-                border: "1px solid rgba(239, 68, 68, 0.4)",
-                color: "#fca5a5",
+                border: "1px solid var(--app-error-border)",
+                color: "var(--app-error-text)",
               }}
             >
               {error}
@@ -227,7 +263,7 @@ export default function Login() {
               padding: "12px",
               border: "none",
               borderRadius: "6px",
-              background: loading ? "#166534" : "#16a34a",
+              background: loading ? "#166534" : "var(--app-button-success)",
               color: "#ffffff",
               fontSize: "1rem",
               fontWeight: "600",
@@ -248,7 +284,7 @@ export default function Login() {
             style={{
               background: "transparent",
               border: "none",
-              color: "#86efac",
+              color: "var(--app-success)",
               cursor: "pointer",
               fontSize: "0.95rem",
               textDecoration: "underline",

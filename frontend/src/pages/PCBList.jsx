@@ -52,31 +52,31 @@ export default function PCBList() {
       REGISTERED: {
         label: "Registered",
         bg: "rgba(56, 189, 248, 0.15)",
-        text: "#38bdf8",
+        text: "var(--app-info)",
         border: "rgba(56, 189, 248, 0.3)"
       },
       IN_DIAGNOSIS: {
         label: "In Diagnosis",
         bg: "rgba(56, 189, 248, 0.15)",
-        text: "#38bdf8",
+        text: "var(--app-info)",
         border: "rgba(56, 189, 248, 0.3)"
       },
       REPAIRED: {
         label: "Repaired",
         bg: "rgba(52, 211, 153, 0.15)",
-        text: "#34d399",
+        text: "var(--app-success)",
         border: "rgba(52, 211, 153, 0.3)"
       },
       TESTING: {
         label: "Testing",
         bg: "rgba(251, 191, 36, 0.15)",
-        text: "#fbbf24",
+        text: "var(--app-warning)",
         border: "rgba(251, 191, 36, 0.3)"
       },
       COMPLETED: {
         label: "Completed",
         bg: "rgba(74, 222, 128, 0.15)",
-        text: "#4ade80",
+        text: "var(--app-success)",
         border: "rgba(74, 222, 128, 0.3)"
       },
       ARCHIVED: {
@@ -90,7 +90,7 @@ export default function PCBList() {
     const style = map[key] || {
       label: key.replace(/_/g, " "),
       bg: "#1e293b",
-      text: "#94a3b8",
+      text: "var(--app-text-muted)",
       border: "#334155"
     };
 
@@ -125,7 +125,7 @@ export default function PCBList() {
         padding: "24px",
         maxWidth: "1400px",
         margin: "0 auto",
-        color: "#e6edf3",
+        color: "var(--app-text)",
         fontFamily: "Segoe UI, -apple-system, sans-serif"
       }}
     >
@@ -146,7 +146,7 @@ export default function PCBList() {
               fontSize: "1.6rem",
               fontWeight: "700",
               margin: "0 0 6px 0",
-              color: "#f0f6fc"
+              color: "var(--app-text)"
             }}
           >
             Registered PCB Units
@@ -155,7 +155,7 @@ export default function PCBList() {
           <p
             style={{
               margin: 0,
-              color: "#8b949e",
+              color: "var(--app-text-muted)",
               fontSize: "0.9rem"
             }}
           >
@@ -172,10 +172,10 @@ export default function PCBList() {
             onChange={handleSearchChange}
             style={{
               padding: "10px 16px",
-              backgroundColor: "#0d1117",
-              border: "1px solid #30363d",
+              backgroundColor: "var(--app-bg)",
+              border: "1px solid var(--app-border)",
               borderRadius: "6px",
-              color: "#c9d1d9",
+              color: "var(--app-text)",
               width: "360px",
               fontSize: "0.9rem",
               outline: "none"
@@ -187,8 +187,8 @@ export default function PCBList() {
       {error && (
         <div
           style={{
-            background: "#7f1d1d",
-            color: "#fecaca",
+            background: "var(--app-error-bg)",
+            color: "var(--app-error-text)",
             padding: "14px",
             borderRadius: "8px",
             marginBottom: "16px"
@@ -201,9 +201,9 @@ export default function PCBList() {
       {/* PCB Registry Table */}
       <div
         style={{
-          backgroundColor: "#161b22",
+          backgroundColor: "var(--app-surface)",
           borderRadius: "8px",
-          border: "1px solid #30363d",
+          border: "1px solid var(--app-border)",
           overflowX: "auto",
           boxShadow: "0 4px 12px rgba(0,0,0,0.25)"
         }}
@@ -218,38 +218,38 @@ export default function PCBList() {
           <thead>
             <tr
               style={{
-                backgroundColor: "#21262d",
-                borderBottom: "1px solid #30363d"
+                backgroundColor: "var(--app-surface-muted)",
+                borderBottom: "1px solid var(--app-border)"
               }}
             >
-              <th style={{ padding: "12px 16px", color: "#8b949e", fontSize: "0.82rem", textTransform: "uppercase" }}>
+              <th style={{ padding: "12px 16px", color: "var(--app-text-muted)", fontSize: "0.82rem", textTransform: "uppercase" }}>
                 ID
               </th>
 
-              <th style={{ padding: "12px 16px", color: "#8b949e", fontSize: "0.82rem", textTransform: "uppercase" }}>
+              <th style={{ padding: "12px 16px", color: "var(--app-text-muted)", fontSize: "0.82rem", textTransform: "uppercase" }}>
                 Reference / Serial
               </th>
 
-              <th style={{ padding: "12px 16px", color: "#8b949e", fontSize: "0.82rem", textTransform: "uppercase" }}>
+              <th style={{ padding: "12px 16px", color: "var(--app-text-muted)", fontSize: "0.82rem", textTransform: "uppercase" }}>
                 Customer
               </th>
 
-              <th style={{ padding: "12px 16px", color: "#8b949e", fontSize: "0.82rem", textTransform: "uppercase" }}>
+              <th style={{ padding: "12px 16px", color: "var(--app-text-muted)", fontSize: "0.82rem", textTransform: "uppercase" }}>
                 Equipment
               </th>
 
-              <th style={{ padding: "12px 16px", color: "#8b949e", fontSize: "0.82rem", textTransform: "uppercase" }}>
+              <th style={{ padding: "12px 16px", color: "var(--app-text-muted)", fontSize: "0.82rem", textTransform: "uppercase" }}>
                 Status
               </th>
 
-              <th style={{ padding: "12px 16px", color: "#8b949e", fontSize: "0.82rem", textTransform: "uppercase" }}>
+              <th style={{ padding: "12px 16px", color: "var(--app-text-muted)", fontSize: "0.82rem", textTransform: "uppercase" }}>
                 Received Date
               </th>
 
               <th
                 style={{
                   padding: "12px 16px",
-                  color: "#8b949e",
+                  color: "var(--app-text-muted)",
                   fontSize: "0.82rem",
                   textTransform: "uppercase",
                   textAlign: "center"
@@ -268,7 +268,7 @@ export default function PCBList() {
                   style={{
                     padding: "36px",
                     textAlign: "center",
-                    color: "#8b949e"
+                    color: "var(--app-text-muted)"
                   }}
                 >
                   Searching PCB records...
@@ -281,7 +281,7 @@ export default function PCBList() {
                   style={{
                     padding: "36px",
                     textAlign: "center",
-                    color: "#8b949e"
+                    color: "var(--app-text-muted)"
                   }}
                 >
                   {searchQuery
@@ -294,11 +294,11 @@ export default function PCBList() {
                 <tr
                   key={pcb.id}
                   style={{
-                    borderBottom: "1px solid #21262d",
+                    borderBottom: "1px solid var(--app-surface-muted)",
                     transition: "background-color 0.15s ease"
                   }}
                   onMouseEnter={(e) =>
-                    (e.currentTarget.style.backgroundColor = "#1c2128")
+                    (e.currentTarget.style.backgroundColor = "var(--app-surface-muted)")
                   }
                   onMouseLeave={(e) =>
                     (e.currentTarget.style.backgroundColor = "transparent")
@@ -307,7 +307,7 @@ export default function PCBList() {
                   <td
                     style={{
                       padding: "12px 16px",
-                      color: "#64748b",
+                      color: "var(--app-text-muted)",
                       fontSize: "0.88rem"
                     }}
                   >
@@ -318,7 +318,7 @@ export default function PCBList() {
                     <div
                       style={{
                         fontWeight: "600",
-                        color: "#f1f5f9",
+                        color: "var(--app-text)",
                         fontSize: "0.9rem"
                       }}
                     >
@@ -329,7 +329,7 @@ export default function PCBList() {
                       <div
                         style={{
                           fontSize: "0.76rem",
-                          color: "#38bdf8",
+                          color: "var(--app-info)",
                           marginTop: "2px"
                         }}
                       >
@@ -341,24 +341,24 @@ export default function PCBList() {
                   <td
                     style={{
                       padding: "12px 16px",
-                      color: "#cbd5e1",
+                      color: "var(--app-text)",
                       fontSize: "0.88rem"
                     }}
                   >
                     {pcb.customer_name || (
-                      <span style={{ color: "#64748b" }}>-</span>
+                      <span style={{ color: "var(--app-text-muted)" }}>-</span>
                     )}
                   </td>
 
                   <td
                     style={{
                       padding: "12px 16px",
-                      color: "#cbd5e1",
+                      color: "var(--app-text)",
                       fontSize: "0.88rem"
                     }}
                   >
                     {pcb.equipment || (
-                      <span style={{ color: "#64748b" }}>-</span>
+                      <span style={{ color: "var(--app-text-muted)" }}>-</span>
                     )}
                   </td>
 
@@ -382,7 +382,7 @@ export default function PCBList() {
                             fontSize: "0.68rem",
                             fontWeight: "700",
                             backgroundColor: "rgba(234, 88, 12, 0.15)",
-                            color: "#fb923c",
+                            color: "var(--app-warning)",
                             border:
                               "1px solid rgba(234, 88, 12, 0.4)",
                             whiteSpace: "nowrap"
@@ -397,7 +397,7 @@ export default function PCBList() {
                   <td
                     style={{
                       padding: "12px 16px",
-                      color: "#94a3b8",
+                      color: "var(--app-text-muted)",
                       fontSize: "0.85rem",
                       whiteSpace: "nowrap"
                     }}
@@ -416,7 +416,7 @@ export default function PCBList() {
                       to={`/pcb/${pcb.id}`}
                       style={{
                         padding: "5px 12px",
-                        backgroundColor: "#238636",
+                        backgroundColor: "var(--app-button-success)",
                         color: "#ffffff",
                         textDecoration: "none",
                         borderRadius: "5px",
@@ -443,19 +443,19 @@ export default function PCBList() {
               justifyContent: "space-between",
               alignItems: "center",
               padding: "14px 20px",
-              borderTop: "1px solid #30363d",
-              backgroundColor: "#161b22",
+              borderTop: "1px solid var(--app-border)",
+              backgroundColor: "var(--app-surface)",
               fontSize: "0.86rem",
-              color: "#8b949e",
+              color: "var(--app-text-muted)",
               flexWrap: "wrap",
               gap: "12px"
             }}
           >
             <div>
               Showing{" "}
-              <strong style={{ color: "#e6edf3" }}>{startIndex}</strong> to{" "}
-              <strong style={{ color: "#e6edf3" }}>{endIndex}</strong> of{" "}
-              <strong style={{ color: "#e6edf3" }}>{total}</strong> units
+              <strong style={{ color: "var(--app-text)" }}>{startIndex}</strong> to{" "}
+              <strong style={{ color: "var(--app-text)" }}>{endIndex}</strong> of{" "}
+              <strong style={{ color: "var(--app-text)" }}>{total}</strong> units
             </div>
 
             <div
@@ -473,11 +473,11 @@ export default function PCBList() {
                 style={{
                   padding: "6px 14px",
                   borderRadius: "6px",
-                  border: "1px solid #30363d",
+                  border: "1px solid var(--app-border)",
                   backgroundColor:
-                    currentPage === 1 ? "#0d1117" : "#21262d",
+                    currentPage === 1 ? "var(--app-bg)" : "var(--app-surface-muted)",
                   color:
-                    currentPage === 1 ? "#484f58" : "#c9d1d9",
+                    currentPage === 1 ? "#484f58" : "var(--app-text)",
                   cursor:
                     currentPage === 1 ? "not-allowed" : "pointer",
                   fontWeight: "600",
@@ -490,7 +490,7 @@ export default function PCBList() {
               <span
                 style={{
                   margin: "0 6px",
-                  color: "#c9d1d9"
+                  color: "var(--app-text)"
                 }}
               >
                 Page <strong>{currentPage}</strong> of{" "}
@@ -507,15 +507,15 @@ export default function PCBList() {
                 style={{
                   padding: "6px 14px",
                   borderRadius: "6px",
-                  border: "1px solid #30363d",
+                  border: "1px solid var(--app-border)",
                   backgroundColor:
                     currentPage >= totalPages
-                      ? "#0d1117"
-                      : "#21262d",
+                      ? "var(--app-bg)"
+                      : "var(--app-surface-muted)",
                   color:
                     currentPage >= totalPages
                       ? "#484f58"
-                      : "#c9d1d9",
+                      : "var(--app-text)",
                   cursor:
                     currentPage >= totalPages
                       ? "not-allowed"

@@ -5,7 +5,7 @@ const cardStyle = {
   width: "100%",
   maxWidth: "420px",
   boxSizing: "border-box",
-  background: "#1e293b",
+  background: "var(--app-surface)",
   padding: "35px",
   borderRadius: "12px",
   boxShadow: "0 10px 30px rgba(0,0,0,0.3)",
@@ -16,8 +16,8 @@ const inputStyle = {
   boxSizing: "border-box",
   padding: "11px 12px",
   borderRadius: "6px",
-  border: "1px solid #475569",
-  background: "#0f172a",
+  border: "1px solid var(--app-border)",
+  background: "var(--app-input-bg)",
   color: "#ffffff",
   fontSize: "1rem",
 };
@@ -27,7 +27,7 @@ const buttonStyle = {
   padding: "12px",
   border: "none",
   borderRadius: "6px",
-  background: "#16a34a",
+  background: "var(--app-button-success)",
   color: "#ffffff",
   fontSize: "1rem",
   fontWeight: "600",
@@ -74,7 +74,7 @@ export default function ForgotPassword() {
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
-      background: "#0f172a",
+      background: "var(--app-input-bg)",
       padding: "20px",
       boxSizing: "border-box",
       fontFamily: "Segoe UI, Tahoma, Geneva, Verdana, sans-serif",
@@ -82,13 +82,13 @@ export default function ForgotPassword() {
       <section style={cardStyle}>
         <header style={{ textAlign: "center", marginBottom: "28px" }}>
           <div style={{ fontSize: "2.5rem", marginBottom: "10px" }}>🌱</div>
-          <h1 style={{ margin: 0, color: "#4ade80", fontSize: "1.8rem" }}>
+          <h1 style={{ margin: 0, color: "var(--app-success)", fontSize: "1.8rem" }}>
             GreenUp PCB LIS
           </h1>
-          <h2 style={{ color: "#e2e8f0", fontSize: "1.2rem", marginTop: "22px" }}>
+          <h2 style={{ color: "var(--app-text)", fontSize: "1.2rem", marginTop: "22px" }}>
             Reset your password
           </h2>
-          <p style={{ color: "#94a3b8", marginTop: "8px" }}>
+          <p style={{ color: "var(--app-text-muted)", marginTop: "8px" }}>
             Enter the email address associated with your account.
           </p>
         </header>
@@ -96,7 +96,7 @@ export default function ForgotPassword() {
         <form onSubmit={handleSubmit}>
           <label htmlFor="reset-email" style={{
             display: "block",
-            color: "#e2e8f0",
+            color: "var(--app-text)",
             marginBottom: "7px",
             fontWeight: "600",
           }}>
@@ -115,7 +115,7 @@ export default function ForgotPassword() {
 
           {message && (
             <p role="status" style={{
-              color: "#fde68a",
+              color: "var(--app-warning)",
               background: "rgba(234,179,8,0.12)",
               padding: "12px",
               borderRadius: "6px",
@@ -127,7 +127,7 @@ export default function ForgotPassword() {
 
           {error && (
             <p role="alert" style={{
-              color: "#fca5a5",
+              color: "var(--app-error-text)",
               background: "rgba(239,68,68,0.12)",
               padding: "12px",
               borderRadius: "6px",
@@ -147,7 +147,7 @@ export default function ForgotPassword() {
         </form>
 
         <p style={{ textAlign: "center", marginTop: "22px" }}>
-          <Link to="/login" style={{ color: "#86efac" }}>
+          <Link to="/login" style={{ color: "var(--app-success)" }}>
             Back to sign in
           </Link>
         </p>

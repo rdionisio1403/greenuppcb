@@ -13,6 +13,19 @@ export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  const [theme, setTheme] = React.useState(() => {
+    const savedTheme = localStorage.getItem("greenupcb-theme");
+    if (savedTheme === "light" || savedTheme === "dark") return savedTheme;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+  });
+
+  React.useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("greenupcb-theme", theme);
+  }, [theme]);
+
   const handleLogout = async () => {
     try {
       await apiFetch("/auth/logout", {
@@ -28,9 +41,9 @@ export default function Layout() {
   const isRegistry = location.pathname === "/" || location.pathname.startsWith("/pcbs");
 
   const activeStyle = {
-    color: "#ffffff",
-    backgroundColor: "rgba(255, 255, 255, 0.08)",
-    borderBottom: "2px solid #ffffff",
+    color: "var(--nav-active-text)",
+    backgroundColor: "var(--nav-active-bg)",
+    borderBottom: "2px solid var(--nav-active-text)",
     textDecoration: "none",
     fontWeight: "600",
     fontSize: "0.95rem",
@@ -40,7 +53,7 @@ export default function Layout() {
   };
 
   const inactiveStyle = {
-    color: "#94a3b8",
+    color: "var(--nav-text)",
     borderBottom: "2px solid transparent",
     textDecoration: "none",
     fontWeight: "500",
@@ -54,7 +67,7 @@ export default function Layout() {
     <div style={{ fontFamily: "Segoe UI, Tahoma, Geneva, Verdana, sans-serif", maxWidth: "1100px", margin: "0 auto", padding: "20px" }}>
       <header
         style={{
-          borderBottom: "1px solid #334155",
+          borderBottom: "1px solid var(--app-border)",
           paddingBottom: "15px",
           marginBottom: "30px",
           display: "flex",
@@ -66,7 +79,7 @@ export default function Layout() {
       >
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <span style={{ fontSize: "1.5rem" }}>🌱</span>
-          <h2 style={{ margin: 0, color: "#4ade80", fontSize: "1.4rem", fontWeight: "700", whiteSpace: "nowrap" }}>
+          <h2 style={{ margin: 0, color: "var(--app-success)", fontSize: "1.4rem", fontWeight: "700", whiteSpace: "nowrap" }}>
             GreenUp PCB LIS
           </h2>
         </div>
@@ -125,7 +138,7 @@ export default function Layout() {
             to="/new"
             style={{
               padding: "8px 16px",
-              background: "#16a34a",
+              background: "var(--app-button-success)",
               color: "#ffffff",
               textDecoration: "none",
               borderRadius: "6px",
@@ -143,8 +156,8 @@ export default function Layout() {
             style={{
               padding: "8px 14px",
               background: "transparent",
-              color: "#94a3b8",
-              border: "1px solid #475569",
+              color: "var(--nav-text)",
+              border: "1px solid var(--app-border)",
               borderRadius: "6px",
               fontWeight: "500",
               fontSize: "0.95rem",
@@ -156,6 +169,24 @@ export default function Layout() {
           </button>
         </nav>
       </header>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "12px" }}>
+        <button
+          type="button"
+          onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")}
+          aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+          style={{
+            padding: "8px 12px",
+            border: "1px solid var(--app-border)",
+            borderRadius: "8px",
+            background: "var(--app-surface)",
+            color: "var(--app-text)",
+            cursor: "pointer",
+            fontWeight: 600
+          }}
+        >
+          {theme === "dark" ? "☀️ Light mode" : "🌙 Dark mode"}
+        </button>
+      </div>
       <main>
         <Outlet context={{ user }} />
       </main>
