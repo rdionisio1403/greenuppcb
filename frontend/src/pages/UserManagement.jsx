@@ -13,6 +13,19 @@ export default function UserManagement() {
   const [actionLoading, setActionLoading] = useState(null);
   const [error, setError] = useState("");
   const [pendingConfirmation, setPendingConfirmation] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+  const totalPages = Math.max(1, Math.ceil(users.length / pageSize));
+  const paginatedUsers = users.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   const loadUsers = async () => {
     setError("");
@@ -224,20 +237,6 @@ export default function UserManagement() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={loadUsers}
-          style={{
-            padding: "9px 14px",
-            background: "var(--app-surface-muted)",
-            color: "#ffffff",
-            border: "1px solid var(--app-border)",
-            borderRadius: "6px",
-            cursor: "pointer",
-          }}
-        >
-          Refresh
-        </button>
       </div>
 
       {error && (
@@ -282,7 +281,7 @@ export default function UserManagement() {
           </thead>
 
           <tbody>
-            {users.map((user) => {
+            {paginatedUsers.map((user, index) => {
               const isCurrentUser = user.id === currentUser.id;
               const isExpanded = expandedUserId === user.id;
               const userSessions = sessions[user.id] || [];
@@ -290,7 +289,7 @@ export default function UserManagement() {
               return (
                 <React.Fragment key={user.id}>
                   <tr>
-                    <td style={cellStyle}>{user.id}</td>
+                    <td style={cellStyle}>{(currentPage - 1) * pageSize + index + 1}</td>
                     <td style={cellStyle}>{user.username}</td>
                     <td style={cellStyle}>{user.email}</td>
                     <td style={cellStyle}>{user.role}</td>
@@ -458,6 +457,51 @@ export default function UserManagement() {
           </tbody>
         </table>
       </div>
+
+      {users.length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "12px",
+            flexWrap: "wrap",
+            marginTop: "16px",
+          }}
+        >
+          <span style={{ color: "var(--app-text-muted)", fontSize: "0.9rem" }}>
+            Showing {(currentPage - 1) * pageSize + 1}–
+            {Math.min(currentPage * pageSize, users.length)} of {users.length} users
+          </span>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <button
+              type="button"
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              disabled={currentPage === 1}
+              style={secondaryButtonStyle}
+            >
+              Previous
+            </button>
+
+            <span style={{ color: "var(--app-text)", fontSize: "0.9rem" }}>
+              Page {currentPage} of {totalPages}
+            </span>
+
+            <button
+              type="button"
+              onClick={() =>
+                setCurrentPage((page) => Math.min(totalPages, page + 1))
+              }
+              disabled={currentPage === totalPages}
+              style={secondaryButtonStyle}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
+
       <ConfirmModal
         open={Boolean(pendingConfirmation)}
         title={pendingConfirmation?.title}
