@@ -1,8 +1,11 @@
 from datetime import datetime, timedelta, timezone
 import secrets
 import logging
+import os
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Response, Request, status
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_db, get_current_user, require_csrf, require_admin
@@ -21,8 +24,10 @@ from app.security import (
     hash_password,
     verify_password,
     hash_reset_token,
+    generate_reset_token,
 )
 from app.audit import log_audit
+from app.services.email_service import send_password_reset_email
 from app.rate_limiter import (
     is_rate_limited,
     record_failed_attempt,
@@ -42,10 +47,16 @@ router = APIRouter(
 SESSION_COOKIE_NAME = "__Host-session_id"
 SESSION_DURATION = timedelta(hours=1)
 
-# Email delivery stays disabled until an approved provider is configured.
-PASSWORD_RESET_EMAIL_ENABLED = False
+# Email delivery remains disabled unless explicitly enabled in the environment.
+PASSWORD_RESET_EMAIL_ENABLED = os.getenv(
+    "PASSWORD_RESET_EMAIL_ENABLED", "false"
+).strip().lower() in {"1", "true", "yes", "on"}
+
 PASSWORD_RESET_REQUEST_MESSAGE = (
     "If an account with that email exists, password reset instructions will be sent."
+)
+PASSWORD_RESET_DISABLED_MESSAGE = (
+    "Email delivery is not configured yet. No reset email has been sent."
 )
 
 
@@ -323,24 +334,89 @@ def change_password(
 def request_password_reset(
     reset_data: PasswordResetRequest,
     request: Request,
+    db: Session = Depends(get_db),
 ):
-    # Email delivery is intentionally disabled until an approved provider is configured.
     client_ip = request.client.host if request.client else "unknown"
     ip_key = f"password-reset:ip:{client_ip}"
 
+    response_message = (
+        PASSWORD_RESET_REQUEST_MESSAGE
+        if PASSWORD_RESET_EMAIL_ENABLED
+        else PASSWORD_RESET_DISABLED_MESSAGE
+    )
+
     if is_rate_limited(ip_key):
-        return {"message": PASSWORD_RESET_REQUEST_MESSAGE}
+        return {"message": response_message}
 
     record_failed_attempt(ip_key)
 
-    if PASSWORD_RESET_EMAIL_ENABLED:
-        # Fail closed: enabling this flag alone must never imply email delivery works.
-        logger.error(
-            "PASSWORD_RESET_EMAIL_ENABLED is true but no delivery provider is implemented."
-        )
+    if not PASSWORD_RESET_EMAIL_ENABLED:
+        logger.info("PASSWORD_RESET_REQUEST_RECEIVED email_delivery_enabled=false")
+        return {"message": PASSWORD_RESET_DISABLED_MESSAGE}
 
-    # Do not look up accounts or create unusable tokens while delivery is disabled.
-    logger.info("PASSWORD_RESET_REQUEST_RECEIVED email_delivery_enabled=false")
+    # Use the same public response for known, unknown, and inactive accounts.
+    user = (
+        db.query(User)
+        .filter(
+            func.lower(User.email) == reset_data.email.lower(),
+            User.is_active.is_(True),
+        )
+        .first()
+    )
+
+    if user is None or not user.email:
+        logger.info("PASSWORD_RESET_REQUEST_PROCESSED")
+        return {"message": PASSWORD_RESET_REQUEST_MESSAGE}
+
+    reset_base_url = os.getenv("PASSWORD_RESET_BASE_URL", "").strip().rstrip("/")
+    if not reset_base_url.startswith("https://"):
+        logger.error(
+            "Password reset email is enabled but PASSWORD_RESET_BASE_URL "
+            "is missing or does not use HTTPS."
+        )
+        return {"message": PASSWORD_RESET_REQUEST_MESSAGE}
+
+    raw_token = generate_reset_token()
+    reset_record = PasswordResetToken(
+        user_id=user.id,
+        token_hash=hash_reset_token(raw_token),
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=30),
+    )
+    reset_record_id = None
+
+    try:
+        db.add(reset_record)
+        db.commit()
+        reset_record_id = reset_record.id
+
+        reset_url = (
+            f"{reset_base_url}/reset-password?"
+            f"{urlencode({'token': raw_token})}"
+        )
+        send_password_reset_email(
+            recipient=user.email,
+            reset_url=reset_url,
+        )
+        logger.info("PASSWORD_RESET_EMAIL_ACCEPTED_BY_PROVIDER")
+
+    except Exception:
+        logger.exception("Password reset email delivery failed.")
+        db.rollback()
+
+        # Do not leave a usable reset token when delivery fails.
+        if reset_record_id is not None:
+            try:
+                db.query(PasswordResetToken).filter(
+                    PasswordResetToken.id == reset_record_id,
+                    PasswordResetToken.used_at.is_(None),
+                ).delete(synchronize_session=False)
+                db.commit()
+            except Exception:
+                db.rollback()
+                logger.exception(
+                    "Failed to remove an undelivered password reset token."
+                )
+
     return {"message": PASSWORD_RESET_REQUEST_MESSAGE}
 
 

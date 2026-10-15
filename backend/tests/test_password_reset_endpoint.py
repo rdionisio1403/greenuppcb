@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 import os
 import uuid
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 from fastapi.testclient import TestClient
@@ -194,12 +195,101 @@ def test_request_endpoint_returns_generic_response_without_creating_tokens(
         assert known_response.status_code == 202, known_response.text
         assert unknown_response.status_code == 202, unknown_response.text
         assert known_response.json() == unknown_response.json()
-        assert "If an account with that email exists" in known_response.json()["message"]
+        assert "Email delivery is not configured yet" in known_response.json()["message"]
 
         db.expire_all()
         after = db.query(PasswordResetToken).filter(
             PasswordResetToken.user_id == user.id
         ).count()
         assert after == before
+    finally:
+        reset_attempts(ip_key)
+
+
+def test_enabled_request_sends_reset_email_and_stores_only_token_hash(
+    reset_test_context, reset_client, monkeypatch
+):
+    import app.routers.auth as auth_router
+
+    db, user, _ = reset_test_context
+    monkeypatch.setattr(auth_router, "PASSWORD_RESET_EMAIL_ENABLED", True)
+    monkeypatch.setenv("PASSWORD_RESET_BASE_URL", "https://greenuppcb.ipcb.pt")
+
+    deliveries = []
+    monkeypatch.setattr(
+        auth_router,
+        "send_password_reset_email",
+        lambda recipient, reset_url: deliveries.append((recipient, reset_url)),
+    )
+
+    ip_key = "password-reset:ip:testclient"
+    reset_attempts(ip_key)
+    try:
+        response = reset_client.post(
+            "/auth/password-reset/request",
+            json={"email": user.email},
+        )
+
+        assert response.status_code == 202, response.text
+        assert response.json()["message"] == auth_router.PASSWORD_RESET_REQUEST_MESSAGE
+        assert len(deliveries) == 1
+
+        recipient, reset_url = deliveries[0]
+        assert recipient == user.email
+
+        parsed_url = urlparse(reset_url)
+        assert parsed_url.scheme == "https"
+        assert parsed_url.netloc == "greenuppcb.ipcb.pt"
+        assert parsed_url.path == "/reset-password"
+
+        raw_token = parse_qs(parsed_url.query).get("token", [""])[0]
+        assert len(raw_token) >= 32
+
+        records = (
+            db.query(PasswordResetToken)
+            .filter(PasswordResetToken.user_id == user.id)
+            .all()
+        )
+        assert len(records) == 1
+        assert records[0].token_hash == hash_reset_token(raw_token)
+        assert records[0].token_hash != raw_token
+    finally:
+        reset_attempts(ip_key)
+
+
+def test_email_delivery_failure_removes_reset_token(
+    reset_test_context, reset_client, monkeypatch
+):
+    import app.routers.auth as auth_router
+
+    db, user, _ = reset_test_context
+    monkeypatch.setattr(auth_router, "PASSWORD_RESET_EMAIL_ENABLED", True)
+    monkeypatch.setenv("PASSWORD_RESET_BASE_URL", "https://greenuppcb.ipcb.pt")
+
+    def fail_delivery(recipient, reset_url):
+        raise RuntimeError("Simulated email provider failure")
+
+    monkeypatch.setattr(
+        auth_router, "send_password_reset_email", fail_delivery
+    )
+
+    ip_key = "password-reset:ip:testclient"
+    reset_attempts(ip_key)
+    try:
+        response = reset_client.post(
+            "/auth/password-reset/request",
+            json={"email": user.email},
+        )
+
+        assert response.status_code == 202, response.text
+        assert response.json()["message"] == auth_router.PASSWORD_RESET_REQUEST_MESSAGE
+
+        db.expire_all()
+        assert (
+            db.query(PasswordResetToken)
+            .filter(PasswordResetToken.user_id == user.id)
+            .count()
+            == 0
+        )
     finally:
         reset_attempts(ip_key)

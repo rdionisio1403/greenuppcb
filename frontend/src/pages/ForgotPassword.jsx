@@ -59,7 +59,8 @@ export default function ForgotPassword() {
       }
 
       setMessage(
-        "The request endpoint responded, but email delivery is not configured yet. No reset email has been sent."
+        data.message ||
+          "If an account with that email exists, password reset instructions will be sent."
       );
     } catch (err) {
       setError(err.message || "Unable to submit the request.");
