@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 import hashlib
+import hmac
 import logging
 import os
 import secrets
@@ -33,6 +34,7 @@ from app.services.email_service import (
     send_password_reset_email,
 )
 from app.rate_limiter import (
+    check_and_record_attempt,
     is_rate_limited,
     record_failed_attempt,
     reset_attempts,
@@ -46,6 +48,21 @@ router = APIRouter(
     prefix="/auth",
     tags=["Authentication"],
 )
+
+# The limiter is process-local; its ephemeral HMAC key is sufficient
+# for protecting email-derived keys within this process lifetime.
+_PASSWORD_RESET_EMAIL_RATE_LIMIT_HMAC_KEY = secrets.token_bytes(32)
+
+
+def _password_reset_email_rate_limit_key(email: str) -> str:
+    normalized_email = email.strip().casefold()
+    digest = hmac.new(
+        _PASSWORD_RESET_EMAIL_RATE_LIMIT_HMAC_KEY,
+        normalized_email.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    return f"password-reset:email:{digest}"
+
 
 
 SESSION_COOKIE_NAME = "__Host-session_id"
@@ -349,14 +366,19 @@ def request_password_reset(
         else PASSWORD_RESET_DISABLED_MESSAGE
     )
 
-    if is_rate_limited(ip_key):
+    if check_and_record_attempt(ip_key):
         return {"message": response_message}
-
-    record_failed_attempt(ip_key)
 
     if not PASSWORD_RESET_EMAIL_ENABLED:
         logger.info("PASSWORD_RESET_REQUEST_RECEIVED email_delivery_enabled=false")
         return {"message": PASSWORD_RESET_DISABLED_MESSAGE}
+
+    # Rate-limit normalized email input before querying the account.
+    # The keyed digest avoids retaining raw email addresses in limiter keys.
+    email_key = _password_reset_email_rate_limit_key(reset_data.email)
+    if check_and_record_attempt(email_key):
+        logger.info("PASSWORD_RESET_REQUEST_PROCESSED")
+        return {"message": PASSWORD_RESET_REQUEST_MESSAGE}
 
     # Use the same public response for known, unknown, and inactive accounts.
     user = (
@@ -373,18 +395,7 @@ def request_password_reset(
         logger.info("PASSWORD_RESET_REQUEST_PROCESSED")
         return {"message": PASSWORD_RESET_REQUEST_MESSAGE}
 
-    # Apply a per-account limit without storing the raw email in the rate-limit key.
-    normalized_email = user.email.strip().casefold()
-    email_digest = hashlib.sha256(
-        normalized_email.encode("utf-8")
-    ).hexdigest()
-    email_key = f"password-reset:email:{email_digest}"
 
-    if is_rate_limited(email_key):
-        logger.info("PASSWORD_RESET_REQUEST_PROCESSED")
-        return {"message": PASSWORD_RESET_REQUEST_MESSAGE}
-
-    record_failed_attempt(email_key)
 
     reset_base_url = os.getenv("PASSWORD_RESET_BASE_URL", "").strip().rstrip("/")
     if not reset_base_url.startswith("https://"):

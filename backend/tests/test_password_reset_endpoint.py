@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta, timezone
-import hashlib
 import os
 import uuid
 from urllib.parse import parse_qs, urlparse
@@ -402,11 +401,9 @@ def test_new_reset_request_invalidates_previous_unused_token(
     )
 
     ip_key = "password-reset:ip:testclient"
-    normalized_email = user.email.strip().casefold()
-    digest = hashlib.sha256(
-        normalized_email.encode("utf-8")
-    ).hexdigest()
-    email_key = f"password-reset:email:{digest}"
+    email_key = auth_router._password_reset_email_rate_limit_key(
+        user.email
+    )
 
     reset_attempts(ip_key)
     reset_attempts(email_key)
@@ -522,11 +519,9 @@ def test_password_reset_request_is_rate_limited_per_email(
     )
 
     ip_key = "password-reset:ip:testclient"
-    normalized_email = user.email.strip().casefold()
-    digest = hashlib.sha256(
-        normalized_email.encode("utf-8")
-    ).hexdigest()
-    email_key = f"password-reset:email:{digest}"
+    email_key = auth_router._password_reset_email_rate_limit_key(
+        user.email
+    )
 
     reset_attempts(ip_key)
     reset_attempts(email_key)
@@ -580,11 +575,9 @@ def test_unknown_email_delivery_outcome_keeps_reset_token(
     )
 
     ip_key = "password-reset:ip:testclient"
-    normalized_email = user.email.strip().casefold()
-    digest = hashlib.sha256(
-        normalized_email.encode("utf-8")
-    ).hexdigest()
-    email_key = f"password-reset:email:{digest}"
+    email_key = auth_router._password_reset_email_rate_limit_key(
+        user.email
+    )
 
     reset_attempts(ip_key)
     reset_attempts(email_key)
