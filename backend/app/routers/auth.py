@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta, timezone
-import secrets
+import hashlib
 import logging
 import os
+import secrets
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Response, Request, status
@@ -27,7 +28,10 @@ from app.security import (
     generate_reset_token,
 )
 from app.audit import log_audit
-from app.services.email_service import send_password_reset_email
+from app.services.email_service import (
+    EmailServiceError,
+    send_password_reset_email,
+)
 from app.rate_limiter import (
     is_rate_limited,
     record_failed_attempt,
@@ -361,12 +365,26 @@ def request_password_reset(
             func.lower(User.email) == reset_data.email.lower(),
             User.is_active.is_(True),
         )
+        .with_for_update()
         .first()
     )
 
     if user is None or not user.email:
         logger.info("PASSWORD_RESET_REQUEST_PROCESSED")
         return {"message": PASSWORD_RESET_REQUEST_MESSAGE}
+
+    # Apply a per-account limit without storing the raw email in the rate-limit key.
+    normalized_email = user.email.strip().casefold()
+    email_digest = hashlib.sha256(
+        normalized_email.encode("utf-8")
+    ).hexdigest()
+    email_key = f"password-reset:email:{email_digest}"
+
+    if is_rate_limited(email_key):
+        logger.info("PASSWORD_RESET_REQUEST_PROCESSED")
+        return {"message": PASSWORD_RESET_REQUEST_MESSAGE}
+
+    record_failed_attempt(email_key)
 
     reset_base_url = os.getenv("PASSWORD_RESET_BASE_URL", "").strip().rstrip("/")
     if not reset_base_url.startswith("https://"):
@@ -383,8 +401,30 @@ def request_password_reset(
         expires_at=datetime.now(timezone.utc) + timedelta(minutes=30),
     )
     reset_record_id = None
+    email_send_started = False
+
+    def remove_reset_token_after_definite_failure():
+        if reset_record_id is None:
+            return
+        try:
+            db.query(PasswordResetToken).filter(
+                PasswordResetToken.id == reset_record_id,
+                PasswordResetToken.used_at.is_(None),
+            ).delete(synchronize_session=False)
+            db.commit()
+        except Exception:
+            db.rollback()
+            logger.exception(
+                "Failed to remove a definitely undelivered reset token."
+            )
 
     try:
+        # Invalidate older unused tokens and create the replacement atomically.
+        db.query(PasswordResetToken).filter(
+            PasswordResetToken.user_id == user.id,
+            PasswordResetToken.used_at.is_(None),
+        ).delete(synchronize_session=False)
+
         db.add(reset_record)
         db.commit()
         reset_record_id = reset_record.id
@@ -393,29 +433,45 @@ def request_password_reset(
             f"{reset_base_url}/reset-password?"
             f"{urlencode({'token': raw_token})}"
         )
+        email_send_started = True
         send_password_reset_email(
             recipient=user.email,
             reset_url=reset_url,
         )
         logger.info("PASSWORD_RESET_EMAIL_ACCEPTED_BY_PROVIDER")
 
-    except Exception:
-        logger.exception("Password reset email delivery failed.")
+    except EmailServiceError as exc:
+        logger.warning(
+            "PASSWORD_RESET_EMAIL_FAILURE "
+            "stage=%s outcome=%s status_code=%s correlation_id=%s",
+            exc.stage,
+            exc.delivery_status,
+            exc.status_code if exc.status_code is not None else "unavailable",
+            exc.correlation_id,
+        )
         db.rollback()
 
-        # Do not leave a usable reset token when delivery fails.
-        if reset_record_id is not None:
-            try:
-                db.query(PasswordResetToken).filter(
-                    PasswordResetToken.id == reset_record_id,
-                    PasswordResetToken.used_at.is_(None),
-                ).delete(synchronize_session=False)
-                db.commit()
-            except Exception:
-                db.rollback()
-                logger.exception(
-                    "Failed to remove an undelivered password reset token."
-                )
+        if exc.delivery_status == "not_sent":
+            remove_reset_token_after_definite_failure()
+        elif reset_record_id is not None:
+            # Microsoft may have accepted the message despite the lost response.
+            logger.warning(
+                "PASSWORD_RESET_TOKEN_RETAINED outcome=unknown "
+                "correlation_id=%s",
+                exc.correlation_id,
+            )
+
+    except Exception:
+        logger.exception("Unexpected password-reset processing failure.")
+        db.rollback()
+
+        if reset_record_id is not None and not email_send_started:
+            remove_reset_token_after_definite_failure()
+        elif reset_record_id is not None:
+            logger.warning(
+                "PASSWORD_RESET_TOKEN_RETAINED outcome=unknown "
+                "reason=unexpected_error"
+            )
 
     return {"message": PASSWORD_RESET_REQUEST_MESSAGE}
 
@@ -428,9 +484,39 @@ def confirm_password_reset(
     db: Session = Depends(get_db),
 ):
     token_hash = hash_reset_token(reset_data.token)
+
+    # Read the owner without locking the token row. All reset operations
+    # acquire locks in the same order: user first, token second.
+    token_owner_id = (
+        db.query(PasswordResetToken.user_id)
+        .filter(PasswordResetToken.token_hash == token_hash)
+        .scalar()
+    )
+
+    if token_owner_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired password reset token.",
+        )
+
+    user = (
+        db.query(User)
+        .filter(User.id == token_owner_id)
+        .with_for_update()
+        .first()
+    )
+    if user is None or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired password reset token.",
+        )
+
     reset_record = (
         db.query(PasswordResetToken)
-        .filter(PasswordResetToken.token_hash == token_hash)
+        .filter(
+            PasswordResetToken.token_hash == token_hash,
+            PasswordResetToken.user_id == token_owner_id,
+        )
         .with_for_update()
         .first()
     )
@@ -452,18 +538,6 @@ def confirm_password_reset(
             detail="Invalid or expired password reset token.",
         )
 
-    user = (
-        db.query(User)
-        .filter(User.id == reset_record.user_id)
-        .with_for_update()
-        .first()
-    )
-    if user is None or not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid or expired password reset token.",
-        )
-
     user.password_hash = hash_password(reset_data.new_password)
     reset_record.used_at = now
 
@@ -477,6 +551,16 @@ def confirm_password_reset(
         db.delete(user_session)
 
     try:
+        # Include the audit event in the same transaction as the password,
+        # token-consumption and session-revocation updates.
+        log_audit(
+            db=db,
+            event_type="PASSWORD_RESET_COMPLETED",
+            request=request,
+            user_id=user.id,
+            details=f"revoked_sessions={revoked_session_count}",
+            commit=False,
+        )
         db.commit()
     except Exception:
         db.rollback()
@@ -484,14 +568,6 @@ def confirm_password_reset(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Unable to reset password. Please try again.",
         )
-
-    log_audit(
-        db=db,
-        event_type="PASSWORD_RESET_COMPLETED",
-        request=request,
-        user_id=user.id,
-        details=f"revoked_sessions={revoked_session_count}",
-    )
 
     response.delete_cookie(
         key=SESSION_COOKIE_NAME,

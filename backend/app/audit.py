@@ -16,6 +16,7 @@ def log_audit(
     request: Optional[Request] = None,
     user_id: Optional[int] = None,
     details: Optional[str] = None,
+    commit: bool = True,
 ) -> None:
     ip_address = get_client_ip(request) if request else None
 
@@ -27,4 +28,5 @@ def log_audit(
     )
 
     db.add(audit_log)
-    db.commit()
+    if commit:
+        db.commit()

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 const inputStyle = {
@@ -13,13 +13,22 @@ const inputStyle = {
 };
 
 export default function ResetPassword() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [token, setToken] = useState(searchParams.get("token") || "");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Keep the token in component state, then remove it from the browser URL.
+  useEffect(() => {
+    if (!searchParams.has("token")) return;
+
+    const cleanedParams = new URLSearchParams(searchParams);
+    cleanedParams.delete("token");
+    setSearchParams(cleanedParams, { replace: true });
+  }, [searchParams, setSearchParams]);
 
   async function handleSubmit(event) {
     event.preventDefault();
