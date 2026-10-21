@@ -73,6 +73,7 @@ export default function ForgotPassword() {
   return (
     <main style={{
       minHeight: "100vh",
+      position: "relative",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",

@@ -49,10 +49,9 @@ export default function ThemeToggle() {
       aria-pressed={theme === "dark"}
       aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
       style={{
-        position: "fixed",
+        position: "absolute",
         top: "20px",
         right: "20px",
-        zIndex: 1000,
         padding: "8px 12px",
         border: "1px solid var(--app-border)",
         borderRadius: "8px",

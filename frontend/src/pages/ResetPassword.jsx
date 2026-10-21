@@ -72,6 +72,7 @@ export default function ResetPassword() {
   return (
     <main style={{
       minHeight: "100vh",
+      position: "relative",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
