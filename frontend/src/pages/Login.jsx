@@ -187,12 +187,15 @@ export default function Login() {
                 fontWeight: "600",
               }}
             >
-              Username
+              Username or email
             </label>
 
             <input
               type="text"
               value={username}
+              placeholder="Enter your username or email"
+              autoCapitalize="none"
+              spellCheck={false}
               onChange={(e) => setUsername(e.target.value)}
               required
               autoComplete="username"
@@ -293,6 +296,33 @@ export default function Login() {
             Forgot your password?
           </button>
         </div>
+
+          <div
+            style={{
+              textAlign: "center",
+              marginTop: "14px",
+              color: "var(--app-text-muted)",
+              fontSize: "0.95rem",
+            }}
+          >
+            Don't have an account?{" "}
+            <button
+              type="button"
+              onClick={() => navigate("/register")}
+              style={{
+                background: "transparent",
+                border: "none",
+                padding: 0,
+                color: "var(--app-success)",
+                cursor: "pointer",
+                fontSize: "0.95rem",
+                fontWeight: "600",
+                textDecoration: "underline",
+              }}
+            >
+              Create account
+            </button>
+          </div>
       </div>
     </div>
   );

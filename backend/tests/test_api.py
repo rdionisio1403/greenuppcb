@@ -46,13 +46,36 @@ def test_full_pcb_and_child_resources_flow():
     )
     assert register_res.status_code == 200, register_res.text
 
+    # Username-based login remains supported.
     login_res = client.post(
         "/auth/login",
         json={"username": username, "password": password, "role": "user"},
     )
     assert login_res.status_code == 200, login_res.text
-    csrf_token = login_res.json()["csrf_token"]
+
+    # Email-based login should also work, regardless of letter case.
+    email_login_res = client.post(
+        "/auth/login",
+        json={"username": email.upper(), "password": password, "role": "user"},
+    )
+    assert email_login_res.status_code == 200, email_login_res.text
+    csrf_token = email_login_res.json()["csrf_token"]
     headers = {"X-CSRF-Token": csrf_token}
+
+    updated_username = f"updated_{username}"
+    updated_email = f"updated_{unique}@example.net"
+    profile_res = client.post(
+        "/auth/update-profile",
+        json={
+            "username": updated_username,
+            "email": updated_email,
+            "current_password": password,
+        },
+        headers=headers,
+    )
+    assert profile_res.status_code == 200, profile_res.text
+    assert profile_res.json()["username"] == updated_username
+    assert profile_res.json()["email"] == updated_email
 
     customer_res = client.post(
         "/customers",
@@ -133,3 +156,78 @@ def test_full_pcb_and_child_resources_flow():
     )
     assert test_res.status_code == 201, test_res.text
     assert client.get(f"/pcbs/{pcb_id}/tests").status_code == 200
+
+
+
+def test_legacy_user_without_email_can_login():
+    import os
+    import time
+
+    from sqlalchemy import create_engine
+    from sqlalchemy.engine import make_url
+    from sqlalchemy.orm import sessionmaker
+
+    from app.models.user import User
+    from app.models.session import Session as UserSession
+    from app.security import hash_password
+
+    database_url = os.environ.get("DATABASE_URL")
+    if not database_url:
+        raise RuntimeError("DATABASE_URL must target greenupcb_test.")
+
+    url = make_url(database_url)
+    if url.database != "greenupcb_test":
+        raise RuntimeError("Refusing to run outside greenupcb_test.")
+
+    factory = None
+    user_id = None
+    engine = create_engine(url, pool_pre_ping=True)
+    try:
+        with engine.connect() as connection:
+            actual_database = connection.exec_driver_sql(
+                "SELECT current_database()"
+            ).scalar_one()
+        if actual_database != "greenupcb_test":
+            raise RuntimeError("Test database verification failed.")
+
+        unique = str(time.time_ns())
+        username = f"legacy_no_email_{unique}"
+        password = f"LegacyTest-{unique}-Safe"
+
+        factory = sessionmaker(bind=engine)
+        with factory() as db:
+            legacy_user = User(
+                username=username,
+                email=None,
+                password_hash=hash_password(password),
+                role="user",
+                is_active=True,
+            )
+            db.add(legacy_user)
+            db.commit()
+            db.refresh(legacy_user)
+            user_id = legacy_user.id
+
+        # A separate client avoids reusing cookies from other API tests.
+        with TestClient(app, base_url="https://testserver") as legacy_client:
+            response = legacy_client.post(
+                "/auth/login",
+                json={
+                    "username": username,
+                    "password": password,
+                    "role": "user",
+                },
+            )
+            assert response.status_code == 200, response.text
+            assert response.json().get("csrf_token")
+    finally:
+        if factory is not None and user_id is not None:
+            with factory() as cleanup_db:
+                cleanup_db.query(UserSession).filter(
+                    UserSession.user_id == user_id
+                ).delete(synchronize_session=False)
+                cleanup_db.query(User).filter(
+                    User.id == user_id
+                ).delete(synchronize_session=False)
+                cleanup_db.commit()
+        engine.dispose()

@@ -1,0 +1,24 @@
+[Unit]
+Description=GreenUpPCB scheduled account deletion
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=greenup
+Group=greenup
+WorkingDirectory=/opt/greenupcb/backend
+EnvironmentFile=/opt/greenupcb/backend/.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/greenupcb/backend/.venv/bin/python /opt/greenupcb/backend/scripts/cleanup_scheduled_account_deletions.py --execute --confirm-database=greenupcb_lis
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+UMask=0077
+TimeoutStartSec=120

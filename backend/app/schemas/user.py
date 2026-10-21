@@ -35,6 +35,24 @@ class UserLogin(BaseModel):
     role: Literal["user", "admin"]
 
 
+class AccountDeletionRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+
+
+class AccountProfileUpdate(BaseModel):
+    username: str = Field(min_length=1, max_length=100)
+    email: EmailStr | None
+    current_password: str = Field(min_length=1, max_length=128)
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Username cannot be empty.")
+        return value
+
+
 class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str = Field(min_length=12, max_length=128)

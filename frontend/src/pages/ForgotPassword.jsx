@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import ThemeToggle from "../components/ThemeToggle";
 
 const cardStyle = {
   width: "100%",
@@ -18,7 +19,7 @@ const inputStyle = {
   borderRadius: "6px",
   border: "1px solid var(--app-border)",
   background: "var(--app-input-bg)",
-  color: "#ffffff",
+  color: "var(--app-text)",
   fontSize: "1rem",
 };
 
@@ -80,6 +81,7 @@ export default function ForgotPassword() {
       boxSizing: "border-box",
       fontFamily: "Segoe UI, Tahoma, Geneva, Verdana, sans-serif",
     }}>
+      <ThemeToggle />
       <section style={cardStyle}>
         <header style={{ textAlign: "center", marginBottom: "28px" }}>
           <div style={{ fontSize: "2.5rem", marginBottom: "10px" }}>🌱</div>

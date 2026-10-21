@@ -124,14 +124,14 @@ export default function Layout() {
           )}
 
           <Link
-            to="/change-password"
+            to="/account-settings"
             style={
-              location.pathname === "/change-password"
+              ["/account-settings", "/change-password"].includes(location.pathname)
                 ? activeStyle
                 : inactiveStyle
             }
           >
-            🔑 Change Password
+            ⚙️ Account Settings
           </Link>
 
           <Link

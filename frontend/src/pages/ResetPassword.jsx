@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import ThemeToggle from "../components/ThemeToggle";
 
 const inputStyle = {
   width: "100%",
@@ -8,7 +9,7 @@ const inputStyle = {
   borderRadius: "6px",
   border: "1px solid var(--app-border)",
   background: "var(--app-input-bg)",
-  color: "#ffffff",
+  color: "var(--app-text)",
   fontSize: "1rem",
 };
 
@@ -79,6 +80,7 @@ export default function ResetPassword() {
       boxSizing: "border-box",
       fontFamily: "Segoe UI, Tahoma, Geneva, Verdana, sans-serif",
     }}>
+      <ThemeToggle />
       <section style={{
         width: "100%",
         maxWidth: "420px",

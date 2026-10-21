@@ -8,6 +8,7 @@ from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Response, Request, status
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.dependencies import get_db, get_current_user, require_csrf, require_admin
@@ -17,6 +18,8 @@ from app.models.password_reset import PasswordResetToken
 from app.schemas.user import (
     UserCreate,
     UserLogin,
+    AccountProfileUpdate,
+    AccountDeletionRequest,
     UserResponse,
     ChangePasswordRequest,
     PasswordResetRequest,
@@ -120,31 +123,44 @@ def login(
     db: Session = Depends(get_db),
 ):
     client_ip = request.client.host if request.client else "unknown"
+    identifier = user.username.strip()
+    identifier_type = "email" if "@" in identifier else "username"
     ip_key = f"ip:{client_ip}"
-    username_key = f"user:{user.username}"
+    identifier_key = f"user:{identifier.casefold()}"
 
-    if is_rate_limited(ip_key) or is_rate_limited(username_key):
+    if is_rate_limited(ip_key) or is_rate_limited(identifier_key):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many login attempts. Please try again later.",
         )
 
+    # Preserve username login for all existing accounts, including those
+    # whose optional email field is NULL. If no username matches, try email.
     db_user = (
         db.query(User)
-        .filter(User.username == user.username)
+        .filter(User.username == identifier)
+        .with_for_update()
         .first()
     )
+    if db_user is None and "@" in identifier:
+        db_user = (
+            db.query(User)
+            .filter(func.lower(User.email) == identifier.lower())
+            .with_for_update()
+            .first()
+        )
 
     if not db_user or not db_user.is_active or not verify_password(
         user.password,
         db_user.password_hash
     ):
         record_failed_attempt(ip_key)
-        record_failed_attempt(username_key)
+        record_failed_attempt(identifier_key)
 
+        # Do not write the submitted email address into application logs.
         logger.warning(
-            "LOGIN_FAILED username=%s ip=%s",
-            user.username,
+            "LOGIN_FAILED identifier_type=%s ip=%s",
+            identifier_type,
             client_ip,
         )
 
@@ -153,7 +169,7 @@ def login(
             event_type="LOGIN_FAILED",
             request=request,
             user_id=db_user.id if db_user else None,
-            details=f"username={user.username}",
+            details=f"identifier_type={identifier_type}",
         )
 
         raise HTTPException(
@@ -163,11 +179,11 @@ def login(
 
     if db_user.role != user.role:
         record_failed_attempt(ip_key)
-        record_failed_attempt(username_key)
+        record_failed_attempt(identifier_key)
 
         logger.warning(
             "LOGIN_FAILED username=%s ip=%s reason=role_mismatch",
-            user.username,
+            db_user.username,
             client_ip,
         )
 
@@ -184,8 +200,42 @@ def login(
             detail="Incorrect username or password",
         )
 
+    deletion_cancelled = False
+    if db_user.deletion_requested_at is not None:
+        login_now = datetime.now(timezone.utc)
+        requested_at = db_user.deletion_requested_at
+        if requested_at.tzinfo is None:
+            requested_at = requested_at.replace(tzinfo=timezone.utc)
+
+        if login_now >= requested_at + timedelta(days=30):
+            log_audit(
+                db=db,
+                event_type="ACCOUNT_LOGIN_BLOCKED_DELETION_EXPIRED",
+                request=request,
+                user_id=db_user.id,
+                details="deletion_grace_period_expired",
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    "The 30-day deletion period has expired. "
+                    "This account is awaiting permanent deletion."
+                ),
+            )
+
+        db_user.deletion_requested_at = None
+        log_audit(
+            db=db,
+            event_type="ACCOUNT_DELETION_CANCELLED",
+            request=request,
+            user_id=db_user.id,
+            details="cancelled_by_successful_login",
+            commit=False,
+        )
+        deletion_cancelled = True
+
     reset_attempts(ip_key)
-    reset_attempts(username_key)
+    reset_attempts(identifier_key)
 
     session_id = secrets.token_urlsafe(32)
     csrf_token = secrets.token_urlsafe(32)
@@ -225,7 +275,11 @@ def login(
         max_age=int(SESSION_DURATION.total_seconds()),
     )
 
-    return {"message": "Login successful", "csrf_token": csrf_token}
+    return {
+        "message": "Login successful",
+        "csrf_token": csrf_token,
+        "account_deletion_cancelled": deletion_cancelled,
+    }
 
 
 @router.post("/logout")
@@ -386,6 +440,7 @@ def request_password_reset(
         .filter(
             func.lower(User.email) == reset_data.email.lower(),
             User.is_active.is_(True),
+            User.deletion_requested_at.is_(None),
         )
         .with_for_update()
         .first()
@@ -594,6 +649,101 @@ def confirm_password_reset(
     }
 
 
+@router.post("/request-account-deletion")
+def request_account_deletion(
+    deletion_data: AccountDeletionRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    csrf_session: UserSession = Depends(require_csrf),
+):
+    if csrf_session.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid session",
+        )
+
+    if not verify_password(
+        deletion_data.current_password,
+        current_user.password_hash,
+    ):
+        log_audit(
+            db=db,
+            event_type="ACCOUNT_DELETION_REQUEST_FAILED",
+            request=request,
+            user_id=current_user.id,
+            details="current_password_invalid",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect",
+        )
+
+    if current_user.deletion_requested_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Account deletion has already been scheduled.",
+        )
+
+    if current_user.role == "admin":
+        other_active_admins = (
+            db.query(User.id)
+            .filter(
+                User.role == "admin",
+                User.is_active.is_(True),
+                User.deletion_requested_at.is_(None),
+                User.id != current_user.id,
+            )
+            .count()
+        )
+        if other_active_admins == 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="The last active administrator cannot schedule account deletion.",
+            )
+
+    requested_at = datetime.now(timezone.utc)
+    scheduled_for = requested_at + timedelta(days=30)
+    current_user.deletion_requested_at = requested_at
+
+    db.query(UserSession).filter(
+        UserSession.user_id == current_user.id
+    ).delete(synchronize_session=False)
+
+    db.query(PasswordResetToken).filter(
+        PasswordResetToken.user_id == current_user.id
+    ).delete(synchronize_session=False)
+
+    log_audit(
+        db=db,
+        event_type="ACCOUNT_DELETION_REQUESTED",
+        request=request,
+        user_id=current_user.id,
+        details="permanent_deletion_after_30_days_without_successful_login",
+        commit=False,
+    )
+    db.commit()
+
+    response.delete_cookie(
+        key=SESSION_COOKIE_NAME,
+        httponly=True,
+        samesite="lax",
+        secure=True,
+        path="/",
+    )
+    response.headers["Cache-Control"] = "no-store"
+
+    return {
+        "message": (
+            "Account deletion is scheduled for 30 days from now. "
+            "Sign in successfully within 30 days to cancel the request."
+        ),
+        "deletion_requested_at": requested_at,
+        "deletion_scheduled_for": scheduled_for,
+    }
+
+
 @router.get("/csrf-token")
 def get_csrf_token(
     request: Request,
@@ -624,6 +774,106 @@ def get_csrf_token(
 
 @router.get("/me", response_model=UserResponse)
 def get_me(current_user: User = Depends(get_current_user)):
+    return current_user
+
+
+@router.post("/update-profile", response_model=UserResponse)
+def update_profile(
+    profile_data: AccountProfileUpdate,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    csrf_session: UserSession = Depends(require_csrf),
+):
+    if csrf_session.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid session",
+        )
+
+    if not verify_password(
+        profile_data.current_password,
+        current_user.password_hash,
+    ):
+        log_audit(
+            db=db,
+            event_type="ACCOUNT_PROFILE_UPDATE_FAILED",
+            request=request,
+            user_id=current_user.id,
+            details="current_password_invalid",
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect",
+        )
+
+    username = profile_data.username.strip()
+    email = (
+        str(profile_data.email).strip().lower()
+        if profile_data.email is not None
+        else None
+    )
+
+    username_conflict = (
+        db.query(User.id)
+        .filter(
+            func.lower(User.username) == username.lower(),
+            User.id != current_user.id,
+        )
+        .first()
+    )
+    if username_conflict:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Username or email is already in use",
+        )
+
+    if email is not None:
+        email_conflict = (
+            db.query(User.id)
+            .filter(
+                func.lower(User.email) == email.lower(),
+                User.id != current_user.id,
+            )
+            .first()
+        )
+        if email_conflict:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Username or email is already in use",
+            )
+
+    username_changed = current_user.username != username
+    email_changed = (current_user.email or "").lower() != (email or "")
+
+    if not username_changed and not email_changed:
+        return current_user
+
+    current_user.username = username
+    current_user.email = email
+
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Username or email is already in use",
+        ) from None
+
+    db.refresh(current_user)
+
+    log_audit(
+        db=db,
+        event_type="ACCOUNT_PROFILE_UPDATED",
+        request=request,
+        user_id=current_user.id,
+        details=(
+            f"username_changed={str(username_changed).lower()};"
+            f"email_changed={str(email_changed).lower()}"
+        ),
+    )
+
     return current_user
 
 
