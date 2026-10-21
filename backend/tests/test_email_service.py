@@ -1,292 +1,218 @@
-import httpx
+import smtplib
+import ssl
+
 import pytest
 
 from app.services import email_service
 
 
-ENV_KEYS = (
-    "MICROSOFT_TENANT_ID",
-    "MICROSOFT_CLIENT_ID",
-    "MICROSOFT_CLIENT_SECRET",
-    "MICROSOFT_SENDER_EMAIL",
-)
+SENDER = "greenuppcb.hub@ipcb.pt"
+RECIPIENT = "recipient@example.com"
+RESET_URL = "https://greenuppcb.ipcb.pt/reset-password?token=abc&source=test"
 
 
-def set_graph_environment(monkeypatch):
-    monkeypatch.setenv("MICROSOFT_TENANT_ID", "test-tenant-id")
-    monkeypatch.setenv("MICROSOFT_CLIENT_ID", "test-client-id")
-    monkeypatch.setenv("MICROSOFT_CLIENT_SECRET", "test-client-secret")
-    monkeypatch.setenv("MICROSOFT_SENDER_EMAIL", "greenuppcb@ipcb.pt")
+class FakeSMTP:
+    instances = []
+    constructor_error = None
+    starttls_error = None
+    login_error = None
+    send_error = None
+    refused = {}
+
+    @classmethod
+    def reset(cls):
+        cls.instances = []
+        cls.constructor_error = None
+        cls.starttls_error = None
+        cls.login_error = None
+        cls.send_error = None
+        cls.refused = {}
+
+    def __init__(self, host, port, timeout):
+        if type(self).constructor_error:
+            raise type(self).constructor_error
+        self.host = host
+        self.port = port
+        self.timeout = timeout
+        self.events = []
+        self.message = None
+        self.from_addr = None
+        self.to_addrs = None
+        type(self).instances.append(self)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        return False
+
+    def ehlo(self):
+        self.events.append("ehlo")
+        return 250, b"OK"
+
+    def starttls(self, context):
+        self.events.append("starttls")
+        assert isinstance(context, ssl.SSLContext)
+        if type(self).starttls_error:
+            raise type(self).starttls_error
+        return 220, b"Ready to start TLS"
+
+    def login(self, username, password):
+        self.events.append("login")
+        self.username = username
+        self.password = password
+        if type(self).login_error:
+            raise type(self).login_error
+        return 235, b"Authenticated"
+
+    def send_message(self, message, from_addr=None, to_addrs=None):
+        self.events.append("send_message")
+        self.message = message
+        self.from_addr = from_addr
+        self.to_addrs = to_addrs
+        if type(self).send_error:
+            raise type(self).send_error
+        return type(self).refused
 
 
-def make_response(status_code, url, json_body=None):
-    request = httpx.Request("POST", url)
-    if json_body is None:
-        return httpx.Response(status_code, request=request)
-    return httpx.Response(status_code, json=json_body, request=request)
+@pytest.fixture
+def smtp_env(monkeypatch):
+    FakeSMTP.reset()
+    monkeypatch.setattr(email_service.smtplib, "SMTP", FakeSMTP)
+    monkeypatch.setenv("SMTP_HOST", "smtp.office365.com")
+    monkeypatch.setenv("SMTP_PORT", "587")
+    monkeypatch.setenv("SMTP_USERNAME", SENDER)
+    monkeypatch.setenv("SMTP_PASSWORD", "test-password-not-real")
+    monkeypatch.setenv("SMTP_SENDER_EMAIL", SENDER)
+    return FakeSMTP
 
 
-def test_graph_email_uses_client_credentials_and_expected_message(
-    monkeypatch,
+def test_smtp_email_uses_starttls_and_expected_message(smtp_env):
+    email_service.send_password_reset_email(RECIPIENT, RESET_URL)
+
+    smtp = smtp_env.instances[0]
+    assert smtp.host == "smtp.office365.com"
+    assert smtp.port == 587
+    assert smtp.timeout == 20
+    assert smtp.username == SENDER
+    assert smtp.password == "test-password-not-real"
+    assert smtp.events == [
+        "ehlo", "starttls", "ehlo", "login", "send_message"
+    ]
+    assert smtp.from_addr == SENDER
+    assert smtp.to_addrs == [RECIPIENT]
+    assert smtp.message["From"] == SENDER
+    assert smtp.message["To"] == RECIPIENT
+    assert smtp.message["Subject"] == "Reset your GreenUp PCB LIS password"
+
+    plain = smtp.message.get_body(preferencelist=("plain",)).get_content()
+    html_body = smtp.message.get_body(preferencelist=("html",)).get_content()
+    assert RESET_URL in plain
+    assert "token=abc&amp;source=test" in html_body
+    assert "expires in 30 minutes" in plain
+
+
+def test_missing_smtp_configuration_fails_before_network_access(
+    monkeypatch, smtp_env
 ):
-    set_graph_environment(monkeypatch)
-    calls = []
-
-    def fake_post(url, **kwargs):
-        calls.append((url, kwargs))
-        if url.endswith("/oauth2/v2.0/token"):
-            return make_response(
-                200,
-                url,
-                {"access_token": "test-access-token"},
-            )
-        return make_response(202, url)
-
-    monkeypatch.setattr(email_service.httpx, "post", fake_post)
-
-    reset_url = (
-        "https://greenuppcb.ipcb.pt/reset-password"
-        "?token=dummy-token&source=unit-test"
-    )
-    email_service.send_password_reset_email(
-        recipient="recipient@example.com",
-        reset_url=reset_url,
-    )
-
-    assert len(calls) == 2
-
-    token_url, token_kwargs = calls[0]
-    assert token_url == (
-        "https://login.microsoftonline.com/"
-        "test-tenant-id/oauth2/v2.0/token"
-    )
-    assert token_kwargs["data"]["grant_type"] == "client_credentials"
-    assert token_kwargs["data"]["client_id"] == "test-client-id"
-    assert token_kwargs["data"]["scope"] == (
-        "https://graph.microsoft.com/.default"
-    )
-
-    send_url, send_kwargs = calls[1]
-    assert send_url == (
-        "https://graph.microsoft.com/v1.0/"
-        "users/greenuppcb%40ipcb.pt/sendMail"
-    )
-    assert send_kwargs["headers"]["Authorization"] == (
-        "Bearer test-access-token"
-    )
-
-    message = send_kwargs["json"]["message"]
-    assert message["toRecipients"][0]["emailAddress"]["address"] == (
-        "recipient@example.com"
-    )
-    assert message["body"]["contentType"] == "HTML"
-    assert "&amp;source=unit-test" in message["body"]["content"]
-
-
-def test_missing_graph_configuration_fails_before_network_access(
-    monkeypatch,
-):
-    for name in ENV_KEYS:
-        monkeypatch.delenv(name, raising=False)
-
-    def unexpected_post(*args, **kwargs):
-        pytest.fail("HTTP request must not occur without configuration.")
-
-    monkeypatch.setattr(email_service.httpx, "post", unexpected_post)
+    monkeypatch.delenv("SMTP_PASSWORD")
 
     with pytest.raises(email_service.EmailServiceError) as exc_info:
-        email_service.send_password_reset_email(
-            recipient="recipient@example.com",
-            reset_url="https://greenuppcb.ipcb.pt/reset-password?token=dummy",
-        )
+        email_service.send_password_reset_email(RECIPIENT, RESET_URL)
 
     assert exc_info.value.stage == "configuration"
     assert exc_info.value.delivery_status == "not_sent"
+    assert smtp_env.instances == []
 
 
-def test_token_endpoint_error_prevents_graph_send(monkeypatch):
-    set_graph_environment(monkeypatch)
-    calls = []
-
-    def fake_post(url, **kwargs):
-        calls.append(url)
-        return make_response(401, url, {"error": "invalid_client"})
-
-    monkeypatch.setattr(email_service.httpx, "post", fake_post)
+def test_invalid_smtp_port_fails_before_network_access(monkeypatch, smtp_env):
+    monkeypatch.setenv("SMTP_PORT", "not-a-port")
 
     with pytest.raises(email_service.EmailServiceError) as exc_info:
-        email_service.send_password_reset_email(
-            recipient="recipient@example.com",
-            reset_url="https://greenuppcb.ipcb.pt/reset-password?token=dummy",
-        )
+        email_service.send_password_reset_email(RECIPIENT, RESET_URL)
 
-    assert exc_info.value.stage == "token_request"
+    assert exc_info.value.stage == "configuration"
     assert exc_info.value.delivery_status == "not_sent"
-    assert exc_info.value.status_code == 401
-    assert len(calls) == 1
-    assert calls[0].endswith("/oauth2/v2.0/token")
+    assert smtp_env.instances == []
 
 
-def test_graph_send_error_is_reported(monkeypatch):
-    set_graph_environment(monkeypatch)
-    calls = []
-
-    def fake_post(url, **kwargs):
-        calls.append(url)
-        if url.endswith("/oauth2/v2.0/token"):
-            return make_response(
-                200,
-                url,
-                {"access_token": "test-access-token"},
-            )
-        return make_response(403, url, {"error": "access_denied"})
-
-    monkeypatch.setattr(email_service.httpx, "post", fake_post)
+def test_smtp_authentication_rejection_is_not_sent(smtp_env):
+    smtp_env.login_error = smtplib.SMTPAuthenticationError(
+        535, b"Authentication unsuccessful"
+    )
 
     with pytest.raises(email_service.EmailServiceError) as exc_info:
-        email_service.send_password_reset_email(
-            recipient="recipient@example.com",
-            reset_url="https://greenuppcb.ipcb.pt/reset-password?token=dummy",
-        )
+        email_service.send_password_reset_email(RECIPIENT, RESET_URL)
+
+    assert exc_info.value.stage == "smtp_auth"
+    assert exc_info.value.delivery_status == "not_sent"
+    assert exc_info.value.status_code == 535
+
+
+def test_smtp_connection_timeout_is_not_sent(smtp_env):
+    smtp_env.constructor_error = TimeoutError("simulated timeout")
+
+    with pytest.raises(email_service.EmailServiceError) as exc_info:
+        email_service.send_password_reset_email(RECIPIENT, RESET_URL)
+
+    assert exc_info.value.stage == "smtp_connect"
+    assert exc_info.value.delivery_status == "not_sent"
+
+
+def test_starttls_failure_is_not_sent(smtp_env):
+    smtp_env.starttls_error = smtplib.SMTPNotSupportedError(
+        "STARTTLS unavailable"
+    )
+
+    with pytest.raises(email_service.EmailServiceError) as exc_info:
+        email_service.send_password_reset_email(RECIPIENT, RESET_URL)
+
+    assert exc_info.value.stage == "smtp_tls"
+    assert exc_info.value.delivery_status == "not_sent"
+
+
+def test_smtp_recipient_refusal_is_not_sent(smtp_env):
+    smtp_env.send_error = smtplib.SMTPRecipientsRefused(
+        {RECIPIENT: (550, b"Recipient rejected")}
+    )
+
+    with pytest.raises(email_service.EmailServiceError) as exc_info:
+        email_service.send_password_reset_email(RECIPIENT, RESET_URL)
 
     assert exc_info.value.stage == "send_mail"
     assert exc_info.value.delivery_status == "not_sent"
-    assert exc_info.value.status_code == 403
-    assert len(calls) == 2
-    assert calls[1].endswith("/sendMail")
+    assert exc_info.value.status_code == 550
 
 
-def test_token_response_without_access_token_is_rejected(monkeypatch):
-    set_graph_environment(monkeypatch)
-    calls = []
-
-    def fake_post(url, **kwargs):
-        calls.append(url)
-        return make_response(200, url, {"expires_in": 3600})
-
-    monkeypatch.setattr(email_service.httpx, "post", fake_post)
+def test_smtp_data_rejection_is_not_sent(smtp_env):
+    smtp_env.send_error = smtplib.SMTPDataError(550, b"Message rejected")
 
     with pytest.raises(email_service.EmailServiceError) as exc_info:
-        email_service.send_password_reset_email(
-            recipient="recipient@example.com",
-            reset_url="https://greenuppcb.ipcb.pt/reset-password?token=dummy-token-value",
-        )
+        email_service.send_password_reset_email(RECIPIENT, RESET_URL)
 
-    assert exc_info.value.stage == "token_response"
+    assert exc_info.value.stage == "send_mail"
     assert exc_info.value.delivery_status == "not_sent"
-    assert len(calls) == 1
-    assert "dummy-token-value" not in str(exc_info.value)
+    assert exc_info.value.status_code == 550
 
 
-
-def test_token_endpoint_timeout_is_classified_as_not_sent(monkeypatch):
-    set_graph_environment(monkeypatch)
-    calls = []
-
-    def fake_post(url, **kwargs):
-        calls.append(url)
-        raise httpx.ConnectTimeout(
-            "simulated timeout",
-            request=httpx.Request("POST", url),
-        )
-
-    monkeypatch.setattr(email_service.httpx, "post", fake_post)
+def test_smtp_disconnect_after_send_started_has_unknown_outcome(smtp_env):
+    smtp_env.send_error = smtplib.SMTPServerDisconnected(
+        "simulated disconnect after DATA started"
+    )
 
     with pytest.raises(email_service.EmailServiceError) as exc_info:
-        email_service.send_password_reset_email(
-            recipient="recipient@example.com",
-            reset_url="https://greenuppcb.ipcb.pt/reset-password?token=dummy",
-        )
-
-    assert exc_info.value.stage == "token_request"
-    assert exc_info.value.delivery_status == "not_sent"
-    assert len(calls) == 1
-
-
-
-def test_sendmail_429_exposes_retry_after_without_retrying(monkeypatch):
-    set_graph_environment(monkeypatch)
-    calls = []
-
-    def fake_post(url, **kwargs):
-        calls.append(url)
-        if url.endswith("/oauth2/v2.0/token"):
-            return make_response(200, url, {"access_token": "test-access-token"})
-        return httpx.Response(
-            429,
-            headers={
-                "Retry-After": "7",
-                "request-id": "11111111-1111-1111-1111-111111111111",
-            },
-            request=httpx.Request("POST", url),
-        )
-
-    monkeypatch.setattr(email_service.httpx, "post", fake_post)
-
-    with pytest.raises(email_service.EmailServiceError) as exc_info:
-        email_service.send_password_reset_email(
-            recipient="recipient@example.com",
-            reset_url="https://greenuppcb.ipcb.pt/reset-password?token=dummy",
-        )
-
-    error = exc_info.value
-    assert error.stage == "send_mail"
-    assert error.delivery_status == "not_sent"
-    assert error.status_code == 429
-    assert error.retry_after == "7"
-    assert error.request_id == "11111111-1111-1111-1111-111111111111"
-    assert len(calls) == 2
-
-
-
-def test_sendmail_503_marks_outcome_unknown_without_retrying(monkeypatch):
-    set_graph_environment(monkeypatch)
-    calls = []
-
-    def fake_post(url, **kwargs):
-        calls.append(url)
-        if url.endswith("/oauth2/v2.0/token"):
-            return make_response(200, url, {"access_token": "test-access-token"})
-        return make_response(503, url, {"error": "temporarily_unavailable"})
-
-    monkeypatch.setattr(email_service.httpx, "post", fake_post)
-
-    with pytest.raises(email_service.EmailServiceError) as exc_info:
-        email_service.send_password_reset_email(
-            recipient="recipient@example.com",
-            reset_url="https://greenuppcb.ipcb.pt/reset-password?token=dummy",
-        )
+        email_service.send_password_reset_email(RECIPIENT, RESET_URL)
 
     assert exc_info.value.stage == "send_mail"
     assert exc_info.value.delivery_status == "unknown"
-    assert exc_info.value.status_code == 503
-    assert len(calls) == 2
 
 
-
-def test_sendmail_read_timeout_marks_outcome_unknown_without_retrying(monkeypatch):
-    set_graph_environment(monkeypatch)
-    calls = []
-
-    def fake_post(url, **kwargs):
-        calls.append(url)
-        if url.endswith("/oauth2/v2.0/token"):
-            return make_response(200, url, {"access_token": "test-access-token"})
-        raise httpx.ReadTimeout(
-            "simulated read timeout",
-            request=httpx.Request("POST", url),
-        )
-
-    monkeypatch.setattr(email_service.httpx, "post", fake_post)
+def test_smtp_returned_recipient_refusal_is_not_sent(smtp_env):
+    smtp_env.refused = {RECIPIENT: (550, b"Recipient rejected")}
 
     with pytest.raises(email_service.EmailServiceError) as exc_info:
-        email_service.send_password_reset_email(
-            recipient="recipient@example.com",
-            reset_url="https://greenuppcb.ipcb.pt/reset-password?token=dummy-token-value",
-        )
+        email_service.send_password_reset_email(RECIPIENT, RESET_URL)
 
     assert exc_info.value.stage == "send_mail"
-    assert exc_info.value.delivery_status == "unknown"
-    assert len(calls) == 2
-    assert "dummy-token-value" not in str(exc_info.value)
-    assert "test-access-token" not in str(exc_info.value)
+    assert exc_info.value.delivery_status == "not_sent"
+    assert exc_info.value.status_code == 550
