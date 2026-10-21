@@ -1166,12 +1166,24 @@ export default function PCBDetail() {
                 ))}
             </select>
 
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => setSelectedFile(e.target.files[0])}
-              style={{ fontSize: "0.85rem", color: "var(--app-text-muted)" }}
-            />
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              <input
+                id="inspection-image-upload"
+                type="file"
+                accept="image/*"
+                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                style={{ position: "absolute", width: "1px", height: "1px", padding: 0, margin: "-1px", overflow: "hidden", clip: "rect(0, 0, 0, 0)", whiteSpace: "nowrap", border: 0 }}
+              />
+              <label
+                htmlFor="inspection-image-upload"
+                style={{ display: "inline-flex", alignItems: "center", padding: "8px 12px", border: "1px solid var(--app-border)", borderRadius: "6px", background: "var(--app-surface)", color: "var(--app-text)", fontSize: "0.85rem", cursor: "pointer" }}
+              >
+                Choose File
+              </label>
+              <span style={{ color: "var(--app-text-muted)", fontSize: "0.85rem", overflowWrap: "anywhere" }} aria-live="polite">
+                {selectedFile?.name || "No file chosen"}
+              </span>
+            </div>
 
             <button
               type="submit"
@@ -1280,16 +1292,28 @@ export default function PCBDetail() {
                           </select>
                         </label>
 
-                        <label style={{ color: "var(--app-text-muted)", fontSize: "0.78rem" }}>
-                          Replacement image (required)
-                          <input
-                            type="file"
-                            accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
-                            required
-                            onChange={(e) => setImageEditFile(e.target.files?.[0] || null)}
-                            style={{ display: "block", width: "100%", boxSizing: "border-box", marginTop: "4px", color: "var(--app-text)", fontSize: "0.75rem" }}
-                          />
-                        </label>
+                        <div style={{ color: "var(--app-text-muted)", fontSize: "0.78rem" }}>
+                          <div>Replacement image (required)</div>
+                          <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "8px", marginTop: "4px" }}>
+                            <input
+                              id={`replacement-image-file-${img.id}`}
+                              type="file"
+                              accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                              required
+                              onChange={(e) => setImageEditFile(e.target.files?.[0] || null)}
+                              style={{ position: "absolute", width: "1px", height: "1px", padding: 0, margin: "-1px", overflow: "hidden", clip: "rect(0, 0, 0, 0)", whiteSpace: "nowrap", border: 0 }}
+                            />
+                            <label
+                              htmlFor={`replacement-image-file-${img.id}`}
+                              style={{ display: "inline-flex", alignItems: "center", padding: "7px 10px", border: "1px solid var(--app-border)", borderRadius: "4px", background: "var(--app-surface)", color: "var(--app-text)", cursor: "pointer" }}
+                            >
+                              Choose File
+                            </label>
+                            <span style={{ color: "var(--app-text-muted)", overflowWrap: "anywhere" }} aria-live="polite">
+                              {imageEditFile?.name || "No file chosen"}
+                            </span>
+                          </div>
+                        </div>
 
                         <div style={{ display: "flex", gap: "8px" }}>
                           <button
