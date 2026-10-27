@@ -1,6 +1,7 @@
 import html
 import logging
 import os
+import socket
 import smtplib
 import ssl
 import uuid
@@ -44,6 +45,46 @@ def _required_env(name: str) -> str:
     if not value:
         raise RuntimeError(f"Required email configuration is missing: {name}")
     return value
+
+
+
+# Use IPv4 for this application's SMTP connection because IPv6 is
+# unreachable from the current server network.
+_ORIGINAL_SMTP = smtplib.SMTP
+
+
+class _IPv4SMTP(_ORIGINAL_SMTP):
+    def _get_socket(self, host, port, timeout):
+        addresses = socket.getaddrinfo(
+            host, port, socket.AF_INET, socket.SOCK_STREAM
+        )
+        last_error = None
+
+        for family, socktype, proto, _, sockaddr in addresses:
+            sock = None
+            try:
+                sock = socket.socket(family, socktype, proto)
+                sock.settimeout(timeout)
+                if self.source_address:
+                    sock.bind(self.source_address)
+                sock.connect(sockaddr)
+                return sock
+            except OSError as exc:
+                last_error = exc
+                if sock is not None:
+                    sock.close()
+
+        if last_error is not None:
+            raise last_error
+        raise OSError(f"No IPv4 address found for SMTP host {host!r}")
+
+
+def _smtp_client(host, port, timeout):
+    # Preserve existing SMTP mocks used by the unit tests.
+    factory = smtplib.SMTP
+    if factory is not _ORIGINAL_SMTP:
+        return factory(host, port, timeout=timeout)
+    return _IPv4SMTP(host, port, timeout=timeout)
 
 
 def send_password_reset_email(recipient: str, reset_url: str) -> None:
@@ -97,7 +138,7 @@ def send_password_reset_email(recipient: str, reset_url: str) -> None:
     send_attempt_started = False
 
     try:
-        with smtplib.SMTP(host, port, timeout=20) as smtp:
+        with _smtp_client(host, port, timeout=20) as smtp:
             stage = "smtp_ehlo"
             smtp.ehlo()
 

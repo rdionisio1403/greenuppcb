@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
 
@@ -8,6 +10,9 @@ from app.models.user import User
 from app.models.session import Session as UserSession
 from app.schemas.user import SessionResponse
 from app.schemas.user import UserResponse
+
+
+logger = logging.getLogger(__name__)
 
 
 router = APIRouter(
@@ -53,18 +58,42 @@ def disable_user(
             detail="User not found",
         )
 
-    user.is_active = False
-    db.commit()
-    db.refresh(user)
-
-    log_audit(
-        db=db,
-        event_type="USER_DISABLED",
-        request=request,
-        user_id=current_user.id,
-        details=f"disabled_user_id={user.id};username={user.username}",
+    sessions = (
+        db.query(UserSession)
+        .filter(UserSession.user_id == user.id)
+        .all()
     )
+    revoked_session_count = len(sessions)
 
+    try:
+        user.is_active = False
+        for user_session in sessions:
+            db.delete(user_session)
+
+        log_audit(
+            db=db,
+            event_type="USER_DISABLED",
+            request=request,
+            user_id=current_user.id,
+            details=(
+                f"disabled_user_id={user.id};"
+                f"username={user.username};"
+                f"revoked_sessions={revoked_session_count}"
+            ),
+            commit=False,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception(
+            "Failed to disable user and persist audit event."
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unable to disable user. Please try again.",
+        )
+
+    db.refresh(user)
     return user
 
 
@@ -129,16 +158,26 @@ def revoke_user_session(
             detail="Session not found",
         )
 
-    db.delete(user_session)
-    db.commit()
-
-    log_audit(
-        db=db,
-        event_type="SESSION_REVOKED",
-        request=request,
-        user_id=current_user.id,
-        details=f"revoked_session_id={session_id};target_user_id={user_id}",
-    )
+    try:
+        db.delete(user_session)
+        log_audit(
+            db=db,
+            event_type="SESSION_REVOKED",
+            request=request,
+            user_id=current_user.id,
+            details=f"revoked_session_id={session_id};target_user_id={user_id}",
+            commit=False,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception(
+            "Failed to revoke user session and persist audit event."
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unable to revoke session. Please try again.",
+        )
 
     return {"message": "Session revoked"}
 
@@ -167,18 +206,28 @@ def revoke_all_user_sessions(
 
     revoked_count = len(sessions)
 
-    for user_session in sessions:
-        db.delete(user_session)
+    try:
+        for user_session in sessions:
+            db.delete(user_session)
 
-    db.commit()
-
-    log_audit(
-        db=db,
-        event_type="SESSION_REVOKED",
-        request=request,
-        user_id=current_user.id,
-        details=f"revoked_all_sessions;target_user_id={user_id};count={revoked_count}",
-    )
+        log_audit(
+            db=db,
+            event_type="SESSION_REVOKED",
+            request=request,
+            user_id=current_user.id,
+            details=f"revoked_all_sessions;target_user_id={user_id};count={revoked_count}",
+            commit=False,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception(
+            "Failed to revoke all user sessions and persist audit event."
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unable to revoke sessions. Please try again.",
+        )
 
     return {
         "message": "All sessions revoked",

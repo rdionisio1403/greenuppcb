@@ -6,11 +6,12 @@ import os
 import secrets
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Depends, HTTPException, Response, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, Request, status
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.database import SessionLocal
 from app.dependencies import get_db, get_current_user, require_csrf, require_admin
 from app.models.user import User
 from app.models.session import Session as UserSession
@@ -381,15 +382,26 @@ def change_password(
     for user_session in sessions:
         db.delete(user_session)
 
-    db.commit()
-
-    log_audit(
-        db=db,
-        event_type="PASSWORD_CHANGED",
-        request=request,
-        user_id=current_user.id,
-        details=f"revoked_sessions={revoked_session_count}",
-    )
+    try:
+        # Keep the password update, session revocation and audit event atomic.
+        log_audit(
+            db=db,
+            event_type="PASSWORD_CHANGED",
+            request=request,
+            user_id=current_user.id,
+            details=f"revoked_sessions={revoked_session_count}",
+            commit=False,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception(
+            "Failed to persist password change and audit event."
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unable to change password. Please try again.",
+        )
 
     response.delete_cookie(
         key=SESSION_COOKIE_NAME,
@@ -405,10 +417,70 @@ def change_password(
     }
 
 
+def _remove_reset_token_after_definite_failure(reset_record_id: int) -> None:
+    cleanup_db = None
+    try:
+        cleanup_db = SessionLocal()
+        cleanup_db.query(PasswordResetToken).filter(
+            PasswordResetToken.id == reset_record_id,
+            PasswordResetToken.used_at.is_(None),
+        ).delete(synchronize_session=False)
+        cleanup_db.commit()
+    except Exception:
+        if cleanup_db is not None:
+            cleanup_db.rollback()
+        logger.exception(
+            "Failed to remove a definitely undelivered reset token."
+        )
+    finally:
+        if cleanup_db is not None:
+            cleanup_db.close()
+
+
+def _deliver_password_reset_email_in_background(
+    recipient: str,
+    reset_url: str,
+    reset_record_id: int,
+) -> None:
+    try:
+        send_password_reset_email(
+            recipient=recipient,
+            reset_url=reset_url,
+        )
+        logger.info("PASSWORD_RESET_EMAIL_ACCEPTED_BY_PROVIDER")
+
+    except EmailServiceError as exc:
+        logger.warning(
+            "PASSWORD_RESET_EMAIL_FAILURE "
+            "stage=%s outcome=%s status_code=%s correlation_id=%s",
+            exc.stage,
+            exc.delivery_status,
+            exc.status_code if exc.status_code is not None else "unavailable",
+            exc.correlation_id,
+        )
+
+        if exc.delivery_status == "not_sent":
+            _remove_reset_token_after_definite_failure(reset_record_id)
+        else:
+            logger.warning(
+                "PASSWORD_RESET_TOKEN_RETAINED outcome=unknown "
+                "correlation_id=%s",
+                exc.correlation_id,
+            )
+
+    except Exception:
+        logger.exception("Unexpected password-reset delivery failure.")
+        logger.warning(
+            "PASSWORD_RESET_TOKEN_RETAINED outcome=unknown "
+            "reason=unexpected_error"
+        )
+
+
 @router.post("/password-reset/request", status_code=status.HTTP_202_ACCEPTED)
 def request_password_reset(
     reset_data: PasswordResetRequest,
     request: Request,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     client_ip = request.client.host if request.client else "unknown"
@@ -424,17 +496,17 @@ def request_password_reset(
         return {"message": response_message}
 
     if not PASSWORD_RESET_EMAIL_ENABLED:
-        logger.info("PASSWORD_RESET_REQUEST_RECEIVED email_delivery_enabled=false")
+        logger.info(
+            "PASSWORD_RESET_REQUEST_RECEIVED email_delivery_enabled=false"
+        )
         return {"message": PASSWORD_RESET_DISABLED_MESSAGE}
 
-    # Rate-limit normalized email input before querying the account.
-    # The keyed digest avoids retaining raw email addresses in limiter keys.
     email_key = _password_reset_email_rate_limit_key(reset_data.email)
     if check_and_record_attempt(email_key):
         logger.info("PASSWORD_RESET_REQUEST_PROCESSED")
         return {"message": PASSWORD_RESET_REQUEST_MESSAGE}
 
-    # Use the same public response for known, unknown, and inactive accounts.
+    # Preserve the same public response for known, unknown, and inactive accounts.
     user = (
         db.query(User)
         .filter(
@@ -450,9 +522,10 @@ def request_password_reset(
         logger.info("PASSWORD_RESET_REQUEST_PROCESSED")
         return {"message": PASSWORD_RESET_REQUEST_MESSAGE}
 
+    reset_base_url = os.getenv(
+        "PASSWORD_RESET_BASE_URL", ""
+    ).strip().rstrip("/")
 
-
-    reset_base_url = os.getenv("PASSWORD_RESET_BASE_URL", "").strip().rstrip("/")
     if not reset_base_url.startswith("https://"):
         logger.error(
             "Password reset email is enabled but PASSWORD_RESET_BASE_URL "
@@ -460,6 +533,7 @@ def request_password_reset(
         )
         return {"message": PASSWORD_RESET_REQUEST_MESSAGE}
 
+    recipient = user.email
     raw_token = generate_reset_token()
     reset_record = PasswordResetToken(
         user_id=user.id,
@@ -467,25 +541,10 @@ def request_password_reset(
         expires_at=datetime.now(timezone.utc) + timedelta(minutes=30),
     )
     reset_record_id = None
-    email_send_started = False
-
-    def remove_reset_token_after_definite_failure():
-        if reset_record_id is None:
-            return
-        try:
-            db.query(PasswordResetToken).filter(
-                PasswordResetToken.id == reset_record_id,
-                PasswordResetToken.used_at.is_(None),
-            ).delete(synchronize_session=False)
-            db.commit()
-        except Exception:
-            db.rollback()
-            logger.exception(
-                "Failed to remove a definitely undelivered reset token."
-            )
+    task_scheduled = False
 
     try:
-        # Invalidate older unused tokens and create the replacement atomically.
+        # Replace older unused tokens and store the new token before scheduling email.
         db.query(PasswordResetToken).filter(
             PasswordResetToken.user_id == user.id,
             PasswordResetToken.used_at.is_(None),
@@ -499,48 +558,24 @@ def request_password_reset(
             f"{reset_base_url}/reset-password?"
             f"{urlencode({'token': raw_token})}"
         )
-        email_send_started = True
-        send_password_reset_email(
-            recipient=user.email,
-            reset_url=reset_url,
-        )
-        logger.info("PASSWORD_RESET_EMAIL_ACCEPTED_BY_PROVIDER")
 
-    except EmailServiceError as exc:
-        logger.warning(
-            "PASSWORD_RESET_EMAIL_FAILURE "
-            "stage=%s outcome=%s status_code=%s correlation_id=%s",
-            exc.stage,
-            exc.delivery_status,
-            exc.status_code if exc.status_code is not None else "unavailable",
-            exc.correlation_id,
+        background_tasks.add_task(
+            _deliver_password_reset_email_in_background,
+            recipient,
+            reset_url,
+            reset_record_id,
         )
-        db.rollback()
-
-        if exc.delivery_status == "not_sent":
-            remove_reset_token_after_definite_failure()
-        elif reset_record_id is not None:
-            # Microsoft may have accepted the message despite the lost response.
-            logger.warning(
-                "PASSWORD_RESET_TOKEN_RETAINED outcome=unknown "
-                "correlation_id=%s",
-                exc.correlation_id,
-            )
+        task_scheduled = True
+        logger.info("PASSWORD_RESET_EMAIL_QUEUED")
 
     except Exception:
-        logger.exception("Unexpected password-reset processing failure.")
         db.rollback()
+        logger.exception("Unable to prepare password-reset email delivery.")
 
-        if reset_record_id is not None and not email_send_started:
-            remove_reset_token_after_definite_failure()
-        elif reset_record_id is not None:
-            logger.warning(
-                "PASSWORD_RESET_TOKEN_RETAINED outcome=unknown "
-                "reason=unexpected_error"
-            )
+        if reset_record_id is not None and not task_scheduled:
+            _remove_reset_token_after_definite_failure(reset_record_id)
 
     return {"message": PASSWORD_RESET_REQUEST_MESSAGE}
-
 
 @router.post("/password-reset/confirm")
 def confirm_password_reset(
@@ -853,6 +888,17 @@ def update_profile(
     current_user.email = email
 
     try:
+        log_audit(
+            db=db,
+            event_type="ACCOUNT_PROFILE_UPDATED",
+            request=request,
+            user_id=current_user.id,
+            details=(
+                f"username_changed={str(username_changed).lower()};"
+                f"email_changed={str(email_changed).lower()}"
+            ),
+            commit=False,
+        )
         db.commit()
     except IntegrityError:
         db.rollback()
@@ -860,20 +906,17 @@ def update_profile(
             status_code=status.HTTP_409_CONFLICT,
             detail="Username or email is already in use",
         ) from None
+    except Exception:
+        db.rollback()
+        logger.exception(
+            "Failed to update account profile and persist audit event."
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unable to update profile. Please try again.",
+        )
 
     db.refresh(current_user)
-
-    log_audit(
-        db=db,
-        event_type="ACCOUNT_PROFILE_UPDATED",
-        request=request,
-        user_id=current_user.id,
-        details=(
-            f"username_changed={str(username_changed).lower()};"
-            f"email_changed={str(email_changed).lower()}"
-        ),
-    )
-
     return current_user
 
 

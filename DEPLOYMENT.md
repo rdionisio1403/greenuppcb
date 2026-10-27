@@ -333,9 +333,26 @@ Backend proxy target:
 
     http://127.0.0.1:8000
 
-The active configuration contains HTTP and HTTPS server blocks. The HTTPS
-server listens on port 443, uses the configured certificate and private key,
-and sends an HSTS header. The HTTP server listens on port 80.
+The production hostname's HTTP server listens on port 80 and returns a 301
+redirect to `https://$host$request_uri`, except for the
+`/.well-known/acme-challenge/` path, which remains available for certificate
+issuance and renewal. The HTTPS server listens on port 443 and uses the
+configured certificate and private key.
+
+The active HTTPS configuration sends these headers:
+
+- `Strict-Transport-Security: max-age=31536000; includeSubDomains`
+- `Referrer-Policy: no-referrer`
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: SAMEORIGIN`
+- `Content-Security-Policy-Report-Only` with a restrictive baseline policy.
+- `Cache-Control: no-store` for `/reset-password`.
+
+CSP is currently in report-only mode and does not block resources or actions.
+No `report-uri` or `report-to` destination is configured for centralized
+server-side violation collection. Keep CSP in report-only mode until inline
+scripts/styles and frontend behavior have been reviewed and an enforcing
+policy has been tested.
 
 The Nginx configuration provides routes for:
 
@@ -356,7 +373,7 @@ Inspect the active Nginx configuration:
 
 Inspect the effective security headers:
 
-    sudo nginx -T 2>/dev/null | grep -nEi 'Content-Security-Policy|Strict-Transport-Security|X-Content-Type-Options|X-Frame-Options|Referrer-Policy'
+    sudo nginx -T 2>/dev/null | grep -nEi 'Content-Security-Policy|Strict-Transport-Security|X-Content-Type-Options|X-Frame-Options|Referrer-Policy|Cache-Control'
 
 Test the Nginx configuration:
 
@@ -429,10 +446,20 @@ After deployment, verify the following in the deployed environment:
 
 Password and account security status:
 
-- Authenticated password changes and `PASSWORD_CHANGED` audit events are
-  implemented in the application code.
-- Password-reset request and confirmation endpoints exist, but email delivery
-  is disabled because an approved delivery provider is not configured.
+- New password hashes use Argon2id. Verification continues to accept
+  existing bcrypt hashes; these hashes are not bulk-rewritten and remain
+  verifiable until the user changes or resets their password.
+- Authenticated password changes revoke sessions and record a
+  `PASSWORD_CHANGED` audit event in the same database transaction.
+- Profile updates and administrative session revocation/user-disable actions
+  commit their audit events (`ACCOUNT_PROFILE_UPDATED`, `SESSION_REVOKED`,
+  and `USER_DISABLED`) atomically with the corresponding database changes.
+- Password-reset request and confirmation endpoints are implemented. The
+  request endpoint returns `202` and schedules SMTP delivery as an in-process
+  FastAPI background task. SMTP provider acceptance was verified in an
+  operational check on 2026-10-27. This is not a durable queue: pending work
+  may be lost if the process restarts before the task executes. Check service
+  logs and provider status when troubleshooting delivery.
 - MFA/2FA and re-authentication for sensitive actions have not been verified.
 - A concurrent-session limit has not been verified.
 
@@ -761,9 +788,15 @@ Database backups must be stored separately from the source code repository.
 - The application defines a one-hour maximum session duration and a
   30-minute idle timeout.
 - CSRF validation is required for protected write operations.
-- Authenticated password changes are implemented.
-- Password changes generate a `PASSWORD_CHANGED` audit event.
-- Password-reset request and confirmation endpoints exist.
+- New password hashes use Argon2id; verification supports Argon2id and
+  existing bcrypt hashes. Existing bcrypt hashes are not bulk-rewritten.
+- Password changes revoke sessions and record `PASSWORD_CHANGED` atomically
+  with the password update.
+- Profile updates and administrative session revocation/user-disable actions
+  commit `ACCOUNT_PROFILE_UPDATED`, `SESSION_REVOKED`, and `USER_DISABLED`
+  audit events atomically with their corresponding changes.
+- Password-reset request and confirmation endpoints are implemented; the
+  request endpoint schedules delivery through an in-process FastAPI task.
 - API documentation and the database view require administrator access.
 - Logout, password change, and password-reset confirmation clear the session
   cookie using `Secure` and `Path=/` settings.
@@ -773,11 +806,15 @@ replace runtime verification of every security behavior.
 
 ### Known Limitations and Unverified Controls
 
-- Password-reset email delivery is disabled. An approved email provider has
-  not been configured; email-based password reset is not operational.
-- The effective Nginx configuration search did not show a
-  `Content-Security-Policy` header. CSP must not be considered deployed until
-  it is configured and verified.
+- SMTP provider acceptance for password-reset email was verified on
+  2026-10-27. Delivery uses an in-process FastAPI background task rather than
+  a durable queue. A process restart before task execution may interrupt
+  pending delivery; check service logs and provider status.
+- CSP is present as `Content-Security-Policy-Report-Only`, so it does not
+  enforce blocking. No `report-uri` or `report-to` destination is configured
+  for centralized server-side violation collection. Do not switch to
+  enforcing CSP until inline scripts/styles and frontend behavior have been
+  reviewed and the enforcing policy has been tested.
 - Multi-factor authentication (MFA/2FA) has not been verified as implemented.
 - Re-authentication for sensitive actions has not been verified.
 - A concurrent-session limit has not been verified.
@@ -837,14 +874,22 @@ Before considering a deployment complete, verify:
 - Frontend production build exists
 - Nginx configuration is valid and Nginx is running
 - HTTPS certificate and HTTPS endpoint are verified
+- HTTP requests to the production hostname return 301 to HTTPS, except for
+  the ACME challenge path
 - HSTS is present in the effective HTTPS configuration
-- CSP is configured and verified; otherwise record it as not enabled
+- CSP mode is verified; the current policy is Report-Only, not enforcing
 - Frontend is accessible
 - Login, logout, session expiration, and CSRF protection are tested
 - Session-cookie clearing is tested after logout and password change
 - Administrator-only endpoints reject unauthenticated requests
 - API documentation and database view work for an authorized administrator
-- Password-reset email delivery is not described as operational while disabled
+- Password-reset email is smoke-tested in an authorized environment;
+  provider acceptance and service logs are checked after relevant changes;
+  delivery uses an in-process task, not a durable queue
+- Password-hash tests verify Argon2id generation and existing bcrypt
+  verification in the isolated test environment
+- Atomic audit transaction tests pass for password changes, profile updates,
+  administrative session revocation, and user disable in the isolated test DB
 - Database backup is stored separately from Git
 
 Track MFA/2FA, sensitive-action re-authentication, and concurrent-session

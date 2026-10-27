@@ -12,8 +12,12 @@ public repository.
 - Run the backend tests and frontend production build.
 - Verify application health and the password-reset flow in an authorized
   test environment.
-- Confirm production email configuration with the responsible administrator
-  before enabling email delivery.
+- Verify that password-hash migration tests accept existing bcrypt hashes
+  and validate newly generated Argon2id hashes before release.
+- Verify SMTP configuration using an authorized test mailbox and inspect
+  service logs/provider status to confirm delivery. Password-reset email
+  sending runs as an in-process FastAPI background task, not a durable queue;
+  pending work may be interrupted if the process restarts before execution.
 
 ## If the Backend Fails After a Change
 
